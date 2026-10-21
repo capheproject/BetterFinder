@@ -30,7 +30,7 @@ Requires macOS 14+ and Xcode (Swift 5.10+). No external dependencies.
 | **Images** | Rotate, convert to PNG / JPEG / HEIC from the context menu. |
 | **Portal** (`⌥⌘P`) | Compact single-pane window that can float on top. |
 | **Workspaces** | Save and restore layouts with all their tabs. Your session is restored on launch. |
-| **Theming** | Pick any accent color: selection, sidebar icons, active pane and highlights follow it. |
+| **Theming** | Pick any accent color: selection, sidebar icons, active pane, highlights and the app icon itself (Dock, Finder, Launchpad) follow it. |
 | **Also** | Open in Terminal / iTerm / Ghostty / Warp, copy path, new files from templates, hidden-files toggle, volumes with eject, customizable sidebar icons, drag folders into the sidebar. |
 
 ## Layout
@@ -41,5 +41,5 @@ Sources/BetterFinder/
   Model/     Workspace (panes, actions), BrowserTab (navigation, listing), settings, file items
   Services/  File operations + Footprints, git, Spotlight (mdfind), watchers, Quick Look, hot key
   Views/     Window, panes, list/grid/columns, sidebar, inspector, Quick Open, panels
-scripts/     build-app.sh, make-icon.swift (renders the app icon)
+scripts/     build-app.sh, make-icon/ (renders AppIcon.icns with the app's own AppIconRenderer)
 ```

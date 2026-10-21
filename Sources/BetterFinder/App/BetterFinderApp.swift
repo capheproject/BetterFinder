@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.action = { AppDelegate.summonQuickOpen() }
         HotKeyManager.shared.refresh()
         _ = VolumeStore.shared
+        AppIconController.shared.start()
         NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { n in
             if let w = n.object as? NSWindow, let ws = WorkspaceRegistry.workspace(for: w) { WorkspaceRegistry.lastActive = ws }
         }

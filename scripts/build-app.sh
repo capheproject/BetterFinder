@@ -6,7 +6,11 @@ cd "$(dirname "$0")/.."
 swift build -c release
 BIN="$(swift build -c release --show-bin-path)/BetterFinder"
 
-[[ -f Resources/AppIcon.icns ]] || swift scripts/make-icon.swift Resources
+if [[ ! -f Resources/AppIcon.icns ]]; then
+  mkdir -p .build/tools
+  swiftc -O -o .build/tools/make-icon scripts/make-icon/main.swift Sources/BetterFinder/Services/AppIconRenderer.swift
+  .build/tools/make-icon Resources
+fi
 
 APP=build/BetterFinder.app
 rm -rf "$APP"
