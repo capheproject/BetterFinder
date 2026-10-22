@@ -77,6 +77,9 @@ final class BrowserTab: Identifiable {
     @ObservationIgnored private let spotlight = SpotlightSearch()
     @ObservationIgnored private var selectFirstOnLoad = false
     @ObservationIgnored private var pendingSelection: Set<URL>?
+    /// The item a load should select (and maybe rename). Kept across loads, because creating or
+    /// renaming an item fires the folder watcher, whose reload supersedes the one that carried it.
+    @ObservationIgnored private var pendingTarget: (url: URL, rename: Bool)?
     @ObservationIgnored private var settingsObserver: NSObjectProtocol?
 
     init(url: URL, viewMode: ViewMode = .list) {
@@ -171,6 +174,7 @@ final class BrowserTab: Identifiable {
         filterRecursive = false
         selection = []
         renamingURL = nil
+        pendingTarget = nil
         git = nil
         anchor = nil
     }
@@ -181,6 +185,7 @@ final class BrowserTab: Identifiable {
         let target = url
         let token = UUID()
         loadToken = token
+        if let select { pendingTarget = (select, rename) }
         isLoading = true
         Task.detached(priority: .userInitiated) { [weak self] in
             let result = Result { try FileSystem.list(target) }
@@ -198,7 +203,8 @@ final class BrowserTab: Identifiable {
                         : error.localizedDescription
                 }
                 self.refreshDisplayed()
-                if let select {
+                if let (select, rename) = self.pendingTarget {
+                    self.pendingTarget = nil
                     self.selection = [select]
                     self.anchor = select
                     self.scrollTarget = select

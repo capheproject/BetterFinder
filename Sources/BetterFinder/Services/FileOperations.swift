@@ -232,7 +232,8 @@ final class FileOperationCenter {
             toast("Names can’t contain “/”.")
             return nil
         }
-        let dst = url.deletingLastPathComponent().appendingPathComponent(name)
+        // Keep the directory hint so the URL matches the listing's (folders there end in "/").
+        let dst = url.deletingLastPathComponent().appendingPathComponent(name, isDirectory: url.hasDirectoryPath)
         let caseOnly = dst.path.lowercased() == url.path.lowercased()
         if !caseOnly && FileSystem.exists(dst) {
             toast("“\(name)” already exists.")
@@ -283,7 +284,8 @@ final class FileOperationCenter {
 
     @discardableResult
     func newFolder(in dir: URL, name: String = "untitled folder") -> URL? {
-        let url = FileSystem.uniqueURL(for: dir.appendingPathComponent(name))
+        // A directory URL (trailing "/"), so it equals the one the folder listing will produce.
+        let url = URL(fileURLWithPath: FileSystem.uniqueURL(for: dir.appendingPathComponent(name)).path, isDirectory: true)
         do {
             try fm.createDirectory(at: url, withIntermediateDirectories: false)
             record("Created folder “\(url.lastPathComponent)”", "folder.badge.plus", undo: {
