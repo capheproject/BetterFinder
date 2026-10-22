@@ -45,17 +45,41 @@ struct QuickLookPreview: NSViewRepresentable {
     static func dismantleNSView(_ v: QLPreviewView, coordinator: ()) { v.close() }
 }
 
+/// A collapsible inspector section. Its open/closed state is remembered per `id` across launches.
 struct InspectorSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
+    @AppStorage private var expanded: Bool
+
+    init(title: String, id: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+        _expanded = AppStorage(wrappedValue: true, "inspector.expanded.\(id ?? title)")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(0.6)
+            Button {
+                withAnimation(.easeOut(duration: 0.18)) { expanded.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(title.uppercased())
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(0.6)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                }
                 .foregroundStyle(.secondary)
-            content
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(expanded ? "Collapse \(title)" : "Expand \(title)")
+            if expanded {
+                content
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
     }
 }
@@ -188,7 +212,7 @@ struct SingleInspector: View {
             }
 
             if let archive {
-                InspectorSection(title: "Archive Contents (\(archive.count))") {
+                InspectorSection(title: "Archive Contents (\(archive.count))", id: "Archive Contents") {
                     VStack(alignment: .leading, spacing: 3) {
                         ForEach(archive.prefix(200), id: \.self) { entry in
                             HStack(spacing: 5) {

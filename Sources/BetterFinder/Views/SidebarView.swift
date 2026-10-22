@@ -9,6 +9,11 @@ enum SidebarTarget: Hashable {
 struct SidebarView: View {
     @Environment(Workspace.self) private var ws
     @State private var editingSymbolFor: Favorite?
+    // Collapsed/expanded state of each section survives relaunches.
+    @AppStorage("sidebar.expanded.favorites") private var favoritesExpanded = true
+    @AppStorage("sidebar.expanded.locations") private var locationsExpanded = true
+    @AppStorage("sidebar.expanded.recent") private var recentExpanded = true
+    @AppStorage("sidebar.expanded.tags") private var tagsExpanded = true
 
     private var selection: Binding<SidebarTarget?> {
         Binding(
@@ -30,7 +35,7 @@ struct SidebarView: View {
     var body: some View {
         let settings = AppSettings.shared
         List(selection: selection) {
-            Section("Favorites") {
+            Section("Favorites", isExpanded: $favoritesExpanded) {
                 ForEach(settings.favorites) { fav in
                     SidebarRow(title: fav.name, symbol: fav.resolvedSymbol, dropTarget: fav.url)
                         .tag(SidebarTarget.url(fav.url.standardizedFileURL))
@@ -46,7 +51,7 @@ struct SidebarView: View {
                 .onMove { settings.favorites.move(fromOffsets: $0, toOffset: $1) }
             }
 
-            Section("Locations") {
+            Section("Locations", isExpanded: $locationsExpanded) {
                 ForEach(VolumeStore.shared.volumes) { v in
                     HStack {
                         SidebarRow(title: v.name, symbol: v.symbol, dropTarget: v.url)
@@ -63,7 +68,7 @@ struct SidebarView: View {
                 }
             }
 
-            Section("Recent") {
+            Section("Recent", isExpanded: $recentExpanded) {
                 ForEach(settings.recentFolders.prefix(5), id: \.self) { path in
                     let url = URL(fileURLWithPath: path)
                     SidebarRow(title: FileSystem.displayName(url), symbol: "clock", dropTarget: url)
@@ -71,7 +76,7 @@ struct SidebarView: View {
                 }
             }
 
-            Section("Tags") {
+            Section("Tags", isExpanded: $tagsExpanded) {
                 ForEach(FinderTag.standard) { tag in
                     Label {
                         Text(tag.name)

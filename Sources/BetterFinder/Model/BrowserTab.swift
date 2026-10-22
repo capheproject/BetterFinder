@@ -71,6 +71,7 @@ final class BrowserTab: Identifiable {
     @ObservationIgnored var onSelectionChange: ((BrowserTab) -> Void)?
     @ObservationIgnored weak var tableView: NSTableView?
     @ObservationIgnored private var watcher: DirectoryWatcher?
+    @ObservationIgnored private var watchedURL: URL?
     @ObservationIgnored private var loadToken = UUID()
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private let spotlight = SpotlightSearch()
@@ -200,8 +201,18 @@ final class BrowserTab: Identifiable {
                 self.selectFirstOnLoad = false
             }
         }
-        if watcher?.url != target {
-            watcher = DirectoryWatcher(url: target) { [weak self] in self?.reloadFromWatcher() }
+        if watchedURL != target {
+            // Opening a folder can block (a privacy prompt for Desktop/Documents, a stalled network
+            // or cloud volume), so never do it on the main thread.
+            watchedURL = target
+            watcher = nil
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let w = DirectoryWatcher(url: target) { [weak self] in self?.reloadFromWatcher() }
+                DispatchQueue.main.async {
+                    guard let self, self.watchedURL == target else { return }
+                    self.watcher = w
+                }
+            }
         }
         Task { [weak self] in
             let info = await GitService.info(for: target)
