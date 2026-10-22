@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Quartz
 import SwiftUI
 
@@ -32,6 +33,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var openMainWindow: (() -> Void)?
     private var monitor: Any?
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Installed before launch completes so a reveal that launched the app isn't missed.
+        NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(handleReveal(_:withReplyEvent:)),
+                                                     forEventClass: AEEventClass(kAEMiscStandards),
+                                                     andEventID: AEEventID(kAEMakeObjectsVisible))
+    }
+
+    /// "Show in Finder" from other apps, when BetterFinder is the file viewer.
+    @objc private func handleReveal(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
+        ExternalOpen.handle(ExternalOpen.urls(from: event), reveal: true)
+    }
+
+    /// Open-documents requests. Folders come from Launch Services (Dock stacks, `open` in
+    /// Terminal); files come from "Show in Finder" — AppKit delivers a reveal to the NSFileViewer
+    /// app as an open request for the file itself, and BetterFinder only opens folders.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let folders = urls.filter { FileSystem.isDirectory($0) && !NSWorkspace.shared.isFilePackage(atPath: $0.path) }
+        let files = urls.filter { !folders.contains($0) }
+        if !folders.isEmpty { ExternalOpen.handle(folders, reveal: false) }
+        if !files.isEmpty { ExternalOpen.handle(files, reveal: true) }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSWindow.allowsAutomaticWindowTabbing = false
@@ -50,13 +73,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { AppDelegate.openMainWindow?() }
-        return true
+        guard !flag else { return true }
+        // A window that's minimized or on another Space counts as "not visible" here; bring it
+        // back rather than piling up new windows.
+        if let window = WorkspaceRegistry.all.first(where: { !$0.isPortal })?.window {
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            AppDelegate.openMainWindow?()
+        }
+        return false
     }
 
     static func summonQuickOpen() {
         NSApp.activate(ignoringOtherApps: true)
         if let ws = WorkspaceRegistry.lastActive, let w = ws.window, w.isVisible {
+            w.makeKeyAndOrderFront(nil)
+            ws.openQuickOpen()
+        } else if let ws = WorkspaceRegistry.all.first(where: { !$0.isPortal }), let w = ws.window {
+            if w.isMiniaturized { w.deminiaturize(nil) }
             w.makeKeyAndOrderFront(nil)
             ws.openQuickOpen()
         } else {

@@ -78,6 +78,7 @@ enum WorkspaceRegistry {
     static func register(_ ws: Workspace, window: NSWindow) {
         table.setObject(ws, forKey: window)
         if !ws.isPortal || lastActive == nil { lastActive = ws }
+        ExternalOpen.flush(into: ws)
     }
 
     static func workspace(for window: NSWindow) -> Workspace? { table.object(forKey: window) }

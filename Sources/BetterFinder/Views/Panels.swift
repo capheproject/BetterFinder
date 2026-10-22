@@ -273,6 +273,9 @@ struct GeneralSettings: View {
                 }
             }
             Section("Default File Browser") {
+                DefaultViewerToggle()
+            }
+            Section("Full Disk Access") {
                 Text("To see folders BetterFinder can’t read (like Mail or Safari data), grant Full Disk Access in System Settings.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -331,6 +334,45 @@ struct ShortcutsReference: View {
                 Spacer()
                 Text(r.1).font(.system(size: 12, design: .rounded)).foregroundStyle(.secondary)
             }
+        }
+    }
+}
+
+/// Settings › General › Default File Browser: use BetterFinder instead of Finder for
+/// "Show in Finder" and for opening folders from other apps.
+struct DefaultViewerToggle: View {
+    @State private var enabled = DefaultFileViewer.isEnabled
+    @State private var working = false
+    @State private var error: String?
+
+    var body: some View {
+        let binding = Binding<Bool>(get: { enabled }, set: { apply($0) })
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Toggle("Use BetterFinder instead of Finder", isOn: binding)
+                    .disabled(working || !DefaultFileViewer.isInstalledInApplications)
+                if working { ProgressView().controlSize(.small) }
+            }
+            Text(DefaultFileViewer.isInstalledInApplications
+                 ? "“Show in Finder” in other apps opens BetterFinder with the item selected; apps that are already open switch over the next time they launch. Folders opened from the Dock or Terminal switch over after you log out and back in. Finder stays available for the Desktop and Trash."
+                 : "Move BetterFinder to the Applications folder to make it your default file browser.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let error {
+                Text(error).font(.system(size: 11)).foregroundStyle(.red)
+            }
+        }
+        .onAppear { enabled = DefaultFileViewer.isEnabled }
+    }
+
+    private func apply(_ on: Bool) {
+        working = true
+        error = nil
+        DefaultFileViewer.setEnabled(on) { message in
+            working = false
+            error = message.map { "Couldn’t change the default folder app: \($0)" }
+            enabled = DefaultFileViewer.isEnabled
         }
     }
 }

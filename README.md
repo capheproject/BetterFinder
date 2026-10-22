@@ -36,6 +36,7 @@ Requires macOS 14+ and Xcode (Swift 5.10+). No external dependencies.
 | **Portal** (`⌥⌘P`) | Compact single-pane window that can float on top. |
 | **Workspaces** | Save and restore layouts with all their tabs. Your session is restored on launch. |
 | **Theming** | Pick any accent color: selection, sidebar icons, active pane, highlights and the app icon itself (Dock, Finder, Launchpad) follow it. |
+| **Default file browser** | Settings › General: “Show in Finder” from other apps opens BetterFinder with the item selected; folders opened from the Dock or Terminal follow after the next login. Switch off to hand everything back to Finder. |
 | **Also** | Open in Terminal / iTerm / Ghostty / Warp, copy path, new files from templates, hidden-files toggle, volumes with eject, customizable sidebar icons, drag folders into the sidebar. |
 
 ## Layout

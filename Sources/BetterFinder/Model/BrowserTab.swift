@@ -76,6 +76,7 @@ final class BrowserTab: Identifiable {
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private let spotlight = SpotlightSearch()
     @ObservationIgnored private var selectFirstOnLoad = false
+    @ObservationIgnored private var pendingSelection: Set<URL>?
     @ObservationIgnored private var settingsObserver: NSObjectProtocol?
 
     init(url: URL, viewMode: ViewMode = .list) {
@@ -118,6 +119,18 @@ final class BrowserTab: Identifiable {
         resetTransient()
         load(select: select)
         onNavigate?(self)
+    }
+
+    /// Navigates to `folder` and selects `items` once it has loaded (used by "Show in Finder").
+    func navigate(to folder: URL, selecting items: Set<URL>) {
+        let target = folder.standardizedFileURL
+        if target == url && searchTitle == nil {
+            selection = items
+            scrollTarget = items.first
+            return
+        }
+        pendingSelection = items
+        navigate(to: target, select: items.first)
     }
 
     func goBack() {
@@ -199,6 +212,12 @@ final class BrowserTab: Identifiable {
                     if kept != self.selection { self.selection = kept }
                 }
                 self.selectFirstOnLoad = false
+                if let pending = self.pendingSelection {
+                    self.pendingSelection = nil
+                    let present = Set(self.displayed.map(\.url))
+                    let wanted = pending.intersection(present)
+                    if !wanted.isEmpty { self.selection = wanted }
+                }
             }
         }
         if watchedURL != target {
