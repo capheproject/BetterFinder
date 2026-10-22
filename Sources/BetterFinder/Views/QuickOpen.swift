@@ -244,14 +244,17 @@ struct QuickOpenView: View {
 
             if !model.results.isEmpty {
                 Divider()
+                // Rows are identified by their result (never by position) so a new result set or a
+                // moved selection always redraws; a plain VStack because there are at most ~50 rows.
+                let selectedID = model.results.indices.contains(model.selectedIndex) ? model.results[model.selectedIndex].id : nil
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 2) {
-                            ForEach(Array(model.results.enumerated()), id: \.element.id) { i, item in
-                                PaletteRow(item: item, selected: i == model.selectedIndex, accent: accent)
-                                    .id(i)
+                        VStack(spacing: 2) {
+                            ForEach(model.results) { item in
+                                PaletteRow(item: item, selected: item.id == selectedID, accent: accent)
+                                    .id(item.id)
                                     .onTapGesture {
-                                        model.selectedIndex = i
+                                        if let i = model.results.firstIndex(where: { $0.id == item.id }) { model.selectedIndex = i }
                                         model.perform(item, alternate: NSEvent.modifierFlags.contains(.command))
                                     }
                             }
@@ -259,7 +262,10 @@ struct QuickOpenView: View {
                         .padding(6)
                     }
                     .frame(maxHeight: 400)
-                    .onChange(of: model.selectedIndex) { _, i in proxy.scrollTo(i) }
+                    .onChange(of: selectedID) { _, id in
+                        guard let id else { return }
+                        withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo(id) }
+                    }
                 }
             }
 
