@@ -305,7 +305,12 @@ struct PaneHeader: View {
                             crumbScroller.schedule(after: 0.12) { proxy.scrollTo(list.last, anchor: .trailing) }
                         }
                     }
-                    .onTapGesture(count: 2) { startEditing() }
+                    // Double-click empty space to type a path. Kept behind the crumbs rather than wrapping
+                    // them: a count-2 gesture on the buttons' ancestor holds every single click for the
+                    // double-click interval, which made crumb navigation lag.
+                    .background {
+                        Color.clear.contentShape(Rectangle()).onTapGesture(count: 2) { startEditing() }
+                    }
                 }
                 Text(summary)
                     .font(.system(size: 11))
