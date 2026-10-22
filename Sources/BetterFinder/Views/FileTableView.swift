@@ -21,8 +21,8 @@ struct FileTableView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let table = FileNSTableView()
         table.style = .inset
-        table.rowHeight = 24
-        table.intercellSpacing = NSSize(width: 8, height: 2)
+        table.rowHeight = 28
+        table.intercellSpacing = NSSize(width: 10, height: 2)
         table.allowsMultipleSelection = true
         table.allowsEmptySelection = true
         table.allowsColumnReordering = true
@@ -50,6 +50,10 @@ struct FileTableView: NSViewRepresentable {
         created.isHidden = true
         table.addTableColumn(created)
 
+        for column in table.tableColumns {
+            column.headerCell.font = .systemFont(ofSize: 11, weight: .medium)
+            column.headerCell.textColor = .secondaryLabelColor
+        }
         let c = context.coordinator
         c.table = table
         table.delegate = c
@@ -326,9 +330,9 @@ final class AccentRowView: NSTableRowView {
     override func drawSelection(in dirtyRect: NSRect) {
         guard selectionHighlightStyle != .none else { return }
         let accent = AppSettings.shared.nsAccent
-        let color = isEmphasized ? accent : accent.withAlphaComponent(0.22)
+        let color = isEmphasized ? accent : accent.withAlphaComponent(0.18)
         color.setFill()
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 0), xRadius: 6, yRadius: 6).fill()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 0), xRadius: 7, yRadius: 7).fill()
     }
 
     override var interiorBackgroundStyle: NSView.BackgroundStyle {
@@ -387,11 +391,11 @@ final class NameCellView: NSTableCellView {
         imageView = icon
         textField = field
         NSLayoutConstraint.activate([
-            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             icon.centerYAnchor.constraint(equalTo: centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 18),
-            icon.heightAnchor.constraint(equalToConstant: 18),
-            field.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
+            icon.widthAnchor.constraint(equalToConstant: 20),
+            icon.heightAnchor.constraint(equalToConstant: 20),
+            field.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
             field.centerYAnchor.constraint(equalTo: centerYAnchor),
             badge.leadingAnchor.constraint(greaterThanOrEqualTo: field.trailingAnchor, constant: 6),
             badge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),

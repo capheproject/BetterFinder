@@ -106,8 +106,9 @@ struct ThumbnailView: View {
                 Image(nsImage: thumbnail)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                    .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
             } else {
                 Image(nsImage: IconCache.icon(for: item.url))
                     .resizable()
@@ -165,7 +166,7 @@ struct FileGridView: View {
         GeometryReader { geo in
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: cellWidth, maximum: cellWidth + 24), spacing: 10, alignment: .top)], spacing: 16) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: cellWidth, maximum: cellWidth + 24), spacing: 14, alignment: .top)], spacing: 22) {
                         ForEach(tab.displayed) { item in
                             GridCell(item: item, tab: tab, paneIndex: paneIndex, size: size,
                                      selected: tab.selection.contains(item.url),
@@ -174,7 +175,7 @@ struct FileGridView: View {
                                 .id(item.url)
                         }
                     }
-                    .padding(16)
+                    .padding(20)
                     .frame(maxWidth: .infinity, alignment: .top)
                 }
                 .onChange(of: tab.scrollTarget) { _, target in
@@ -200,7 +201,7 @@ struct FileGridView: View {
     }
 
     private func updateColumns(_ width: CGFloat, _ cell: CGFloat) {
-        tab.gridColumns = max(1, Int((width - 32 + 10) / (cell + 10)))
+        tab.gridColumns = max(1, Int((width - 40 + 14) / (cell + 14)))
     }
 }
 
@@ -219,10 +220,10 @@ struct GridCell: View {
         let accent = AppSettings.shared.accent
         VStack(spacing: 5) {
             ThumbnailView(item: item, size: size)
-                .padding(6)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(selected || targeted ? Color.primary.opacity(0.10) : .clear))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(selected || targeted ? Color.primary.opacity(0.09) : .clear))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(targeted ? accent : .clear, lineWidth: 2))
                 .overlay(alignment: .bottomTrailing) {
                     CellBadges(tags: item.tags, git: git, symlink: item.isSymlink).offset(x: 2, y: 2)
@@ -239,9 +240,9 @@ struct GridCell: View {
                     .truncationMode(.middle)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(selected ? Color.white : Color.primary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(selected ? accent : .clear))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(selected ? accent : .clear))
             }
         }
         .frame(width: size + 40)
@@ -391,9 +392,9 @@ struct ColumnList: View {
                             }
                         }
                         .foregroundStyle(isOn && emphasized ? Color.white : Color.primary)
-                        .padding(.horizontal, 8)
-                        .frame(height: 24)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .padding(.horizontal, 9)
+                        .frame(height: 27)
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
                             .fill(isOn ? (emphasized ? accent : Color.primary.opacity(0.12)) : .clear))
                         .opacity(item.isHidden ? 0.55 : 1)
                         .contentShape(Rectangle())

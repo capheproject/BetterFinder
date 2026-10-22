@@ -131,9 +131,9 @@ struct BrowserToolbar: ToolbarContent {
                 .disabled(!tab.canGoForward)
                 .help("Forward (⌘])")
         }
+        // Grouped like ForkLift: view controls, browsing toggles, file actions, then search.
         ToolbarItemGroup(placement: .primaryAction) {
             ViewModePicker()
-
             Menu {
                 ForEach(PaneLayout.allCases) { l in
                     Button { ws.layout = l } label: { Label(l.title, systemImage: l.symbol) }
@@ -142,7 +142,9 @@ struct BrowserToolbar: ToolbarContent {
                 Label("Layout", systemImage: ws.layout.symbol)
             }
             .help("Pane layout (⌃1–⌃6)")
-
+        }
+        ToolbarSeparatorSpacer()
+        ToolbarItemGroup(placement: .primaryAction) {
             Toggle(isOn: $ws.syncBrowsing) {
                 Label("Sync Browsing", systemImage: "arrow.left.arrow.right.square")
             }
@@ -153,7 +155,9 @@ struct BrowserToolbar: ToolbarContent {
                 Label("Hidden Files", systemImage: AppSettings.shared.showHidden ? "eye" : "eye.slash")
             }
             .help("Show/Hide hidden files (⇧⌘.)")
-
+        }
+        ToolbarSeparatorSpacer()
+        ToolbarItemGroup(placement: .primaryAction) {
             Menu {
                 Button { ws.newFolder() } label: { Label("New Folder", systemImage: "folder.badge.plus") }
                 Divider()
@@ -171,12 +175,23 @@ struct BrowserToolbar: ToolbarContent {
                 .help("Open current folder in Terminal")
 
             ActivityButton()
-
+        }
+        ToolbarSeparatorSpacer()
+        ToolbarItemGroup(placement: .primaryAction) {
             Button { ws.openQuickOpen() } label: { Label("Quick Open", systemImage: "magnifyingglass") }
                 .help("Quick Open — folders, files, commands (⌘K)")
 
             Button { ws.showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.right") }
                 .help("Inspector (⌘I)")
+        }
+    }
+}
+
+/// Visual gap between toolbar groups; on macOS 26 each group gets its own glass capsule.
+struct ToolbarSeparatorSpacer: ToolbarContent {
+    var body: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            ToolbarSpacer(.fixed, placement: .primaryAction)
         }
     }
 }

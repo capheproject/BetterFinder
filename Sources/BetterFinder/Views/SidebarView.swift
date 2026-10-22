@@ -79,10 +79,11 @@ struct SidebarView: View {
             Section("Tags", isExpanded: $tagsExpanded) {
                 ForEach(FinderTag.standard) { tag in
                     Label {
-                        Text(tag.name)
+                        Text(tag.name).font(.system(size: 13))
                     } icon: {
                         Circle().fill(tag.color).frame(width: 10, height: 10)
                     }
+                    .padding(.vertical, 3)
                     .tag(SidebarTarget.tag(tag.name))
                 }
             }
@@ -114,12 +115,12 @@ struct SidebarRow: View {
 
     var body: some View {
         Label {
-            Text(title).lineLimit(1)
+            Text(title).font(.system(size: 13)).lineLimit(1)
         } icon: {
             Image(systemName: symbol)
                 .foregroundStyle(AppSettings.shared.accent)
         }
-        .padding(.vertical, 1)
+        .padding(.vertical, 3)
         .background(RoundedRectangle(cornerRadius: 5).fill(targeted ? AppSettings.shared.accent.opacity(0.25) : .clear).padding(-3))
         .onDrop(of: [.fileURL, .image], isTargeted: $targeted) { DropLoader.handle($0, into: dropTarget, workspace: ws) }
     }

@@ -10,7 +10,7 @@ struct InspectorView: View {
         let tab = ws.activeTab
         let items = tab.selectedItems
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 18) {
                 if items.count == 1 {
                     SingleInspector(item: items[0], git: tab.git?.status(for: items[0].url))
                         .id(items[0].url)
@@ -21,7 +21,8 @@ struct InspectorView: View {
                         .id(folder.url)
                 }
             }
-            .padding(14)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
         .scrollIndicators(.never)
     }
@@ -58,20 +59,21 @@ struct InspectorSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 4) {
             Button {
                 withAnimation(.easeOut(duration: 0.18)) { expanded.toggle() }
             } label: {
                 HStack(spacing: 4) {
-                    Text(title.uppercased())
-                        .font(.system(size: 10, weight: .semibold))
-                        .tracking(0.6)
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
-                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(expanded ? 0 : -90))
                 }
-                .foregroundStyle(.secondary)
+                .padding(.vertical, 2)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -94,11 +96,18 @@ struct InfoRow: View {
             Text(label).foregroundStyle(.secondary)
             Spacer(minLength: 12)
             Text(value)
-                .font(mono ? .system(size: 11, design: .monospaced) : .system(size: 11))
+                .font(mono ? .system(size: 11.5, design: .monospaced) : .system(size: 11.5))
                 .multilineTextAlignment(.trailing)
+                .lineLimit(1)
+                .truncationMode(.head)
+                .help(value)
                 .textSelection(.enabled)
         }
-        .font(.system(size: 11))
+        .font(.system(size: 11.5))
+        .padding(.vertical, 5)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.primary.opacity(0.06)).frame(height: 1)
+        }
     }
 }
 
@@ -125,15 +134,16 @@ struct SingleInspector: View {
                         .frame(maxWidth: .infinity)
                 } else {
                     QuickLookPreview(url: item.url)
-                        .frame(height: 210)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .frame(height: 220)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
                 }
             }
             .padding(.top, 4)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .textSelection(.enabled)
                     .lineLimit(3)
                 Text(subtitle)
@@ -326,7 +336,7 @@ struct MultiInspector: View {
         .frame(height: 140)
 
         Text("\(items.count) items")
-            .font(.system(size: 15, weight: .semibold))
+            .font(.system(size: 17, weight: .semibold))
         Text([folders > 0 ? "\(folders) folder\(folders == 1 ? "" : "s")" : nil,
               items.count - folders > 0 ? "\(items.count - folders) file\(items.count - folders == 1 ? "" : "s")" : nil,
               bytes > 0 ? Fmt.size(bytes) : nil].compactMap { $0 }.joined(separator: " · "))

@@ -43,22 +43,25 @@ struct PaneView: View {
         let multi = ws.visiblePaneCount > 1
         VStack(spacing: 0) {
             if pane.tabs.count > 1 { TabStrip(pane: pane, paneIndex: index) }
-            PathBar(tab: tab, paneIndex: index, isActive: isActive && multi)
+            PaneHeader(tab: tab, paneIndex: index, isActive: isActive || !multi)
             if tab.isFilterVisible { FilterBar(tab: tab) }
-            Divider().opacity(0.6)
+            Rectangle().fill(Color.primary.opacity(0.06)).frame(height: 1)
             ZStack {
                 PaneContent(tab: tab, paneIndex: index)
                 PaneOverlay(tab: tab)
             }
-            Divider().opacity(0.6)
-            StatusBar(tab: tab)
         }
-        .frame(minWidth: 260, minHeight: 180)
-        .background(settings.tintWindow ? settings.accent.opacity(isActive && multi ? 0.035 : 0.015) : Color.clear)
+        .frame(minWidth: 280, minHeight: 200)
+        .background(settings.tintWindow && isActive && multi ? settings.accent.opacity(0.025) : Color.clear)
         .overlay(alignment: .top) {
-            if isActive && multi {
-                Rectangle().fill(settings.accent).frame(height: 2)
-            }
+            // A soft accent capsule marks the active pane.
+            Capsule()
+                .fill(settings.accent)
+                .frame(height: 3)
+                .padding(.horizontal, 14)
+                .padding(.top, 1)
+                .opacity(isActive && multi ? 1 : 0)
+                .animation(.easeOut(duration: 0.2), value: isActive)
         }
         .background(GeometryReader { geo in
             Color.clear
@@ -201,15 +204,18 @@ struct TabChip: View {
     }
 }
 
-// MARK: - Path bar
+// MARK: - Pane header
 
-struct PathBar: View {
+/// Two lines: folder icon + breadcrumb, then a quiet summary (items, selection, free space).
+struct PaneHeader: View {
     @Environment(Workspace.self) private var ws
-    let tab: BrowserTab
+    @Bindable var tab: BrowserTab
     let paneIndex: Int
     let isActive: Bool
     @State private var editing = false
     @State private var text = ""
+    @State private var hovering = false
+    @State private var free: Int64?
     @FocusState private var fieldFocused: Bool
 
     private var crumbs: [URL] {
@@ -220,85 +226,134 @@ struct PathBar: View {
             if u.path == "/" { break }
             u = u.deletingLastPathComponent()
         }
+        // Start at the home folder when inside it, like a person would describe the path.
+        if let home = urls.firstIndex(where: { $0.path == FileSystem.home.path }) { urls.removeFirst(home) }
         return urls
     }
 
-    var body: some View {
-        HStack(spacing: 6) {
-            HStack(spacing: 0) {
-                Button { tab.goBack() } label: { Image(systemName: "chevron.left").frame(width: 20, height: 20) }
-                    .disabled(!tab.canGoBack)
-                Button { tab.goForward() } label: { Image(systemName: "chevron.right").frame(width: 20, height: 20) }
-                    .disabled(!tab.canGoForward)
-            }
-            .buttonStyle(.borderless)
-            .font(.system(size: 11, weight: .semibold))
+    private var summary: String {
+        let count = tab.displayed.count
+        let sel = tab.selection.count
+        var parts: [String] = []
+        if sel > 0 {
+            var s = "\(sel) of \(count) selected"
+            let bytes = tab.selectedItems.reduce(Int64(0)) { $0 + max(0, $1.size) }
+            if bytes > 0 { s += " (\(Fmt.size(bytes)))" }
+            parts.append(s)
+        } else {
+            parts.append("\(count) item\(count == 1 ? "" : "s")")
+        }
+        if let free { parts.append("\(Fmt.size(free)) available") }
+        return parts.joined(separator: ", ")
+    }
 
-            if editing {
-                TextField("Path", text: $text)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12, design: .monospaced))
-                    .focused($fieldFocused)
-                    .onSubmit {
-                        let url = FileSystem.expandPath(text, relativeTo: tab.url)
-                        if FileSystem.isDirectory(url) { tab.navigate(to: url) }
-                        else if FileSystem.exists(url) { tab.navigate(to: url.deletingLastPathComponent(), select: url) }
-                        else { NSSound.beep() }
-                        editing = false
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(nsImage: IconCache.icon(for: tab.isSearch ? FileSystem.home : tab.url))
+                .resizable()
+                .frame(width: 30, height: 30)
+                .opacity(isActive ? 1 : 0.75)
+                .overlay {
+                    if tab.isSearch {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .offset(y: 2)
                     }
-                    .onExitCommand { editing = false }
-                    .onChange(of: fieldFocused) { _, f in if !f { editing = false } }
-                    .onAppear { fieldFocused = true }
-            } else if let title = tab.searchTitle {
-                Label(title, systemImage: "magnifyingglass")
-                    .font(.system(size: 12, weight: .medium))
-                Spacer()
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 1) {
-                        let list = crumbs
-                        ForEach(Array(list.enumerated()), id: \.element) { i, url in
-                            Crumb(url: url, isLast: i == list.count - 1, showIcon: i == 0 || i == list.count - 1) {
-                                ws.activate(paneIndex)
-                                tab.navigate(to: url)
-                            }
-                            if i < list.count - 1 {
-                                Image(systemName: "chevron.compact.right")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(.tertiary)
+                }
+
+            VStack(alignment: .leading, spacing: 2) {
+                if editing {
+                    TextField("Path", text: $text)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13, design: .monospaced))
+                        .focused($fieldFocused)
+                        .onSubmit {
+                            let url = FileSystem.expandPath(text, relativeTo: tab.url)
+                            if FileSystem.isDirectory(url) { tab.navigate(to: url) }
+                            else if FileSystem.exists(url) { tab.navigate(to: url.deletingLastPathComponent(), select: url) }
+                            else { NSSound.beep() }
+                            editing = false
+                        }
+                        .onExitCommand { editing = false }
+                        .onChange(of: fieldFocused) { _, f in if !f { editing = false } }
+                        .onAppear { fieldFocused = true }
+                } else if let title = tab.searchTitle {
+                    Text(title).font(.system(size: 13, weight: .semibold))
+                } else {
+                    let list = crumbs
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 2) {
+                                ForEach(Array(list.enumerated()), id: \.element) { i, url in
+                                    Crumb(url: url, isLast: i == list.count - 1) {
+                                        ws.activate(paneIndex)
+                                        tab.navigate(to: url)
+                                    }
+                                    .id(url)
+                                    if i < list.count - 1 {
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
                             }
                         }
+                        // Keep the current folder in view when the path is longer than the pane.
+                        .onAppear { proxy.scrollTo(list.last, anchor: .trailing) }
+                        .onChange(of: tab.url) { _, _ in proxy.scrollTo(list.last, anchor: .trailing) }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in
+                            proxy.scrollTo(list.last, anchor: .trailing)
+                        }
                     }
-                    .padding(.vertical, 2)
-                }
-                .defaultScrollAnchor(.trailing)
-                Spacer(minLength: 20)
-                    .contentShape(Rectangle())
                     .onTapGesture(count: 2) { startEditing() }
+                }
+                Text(summary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.leading, 5)
+                    .contentTransition(.numericText())
             }
 
+            Spacer(minLength: 8)
+
+            if tab.isLoading {
+                ProgressView().controlSize(.small)
+            }
             if let git = tab.git {
                 Label(git.branch, systemImage: "arrow.triangle.branch")
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
                     .background(Capsule().fill(Color.primary.opacity(0.07)))
                     .help("\(git.changeCount) changed file\(git.changeCount == 1 ? "" : "s") in \(git.root.lastPathComponent)")
             }
-            if tab.isLoading {
-                ProgressView().controlSize(.mini)
+            if tab.viewMode == .grid {
+                Slider(value: $tab.iconSize, in: 32...256)
+                    .controlSize(.mini)
+                    .frame(width: 80)
+                    .help("Icon size")
             }
-            Button { startEditing() } label: { Image(systemName: "character.cursor.ibeam") }
-                .buttonStyle(.borderless)
-                .help("Edit path")
-                .opacity(editing ? 0 : 0.6)
+            Button { startEditing() } label: {
+                Image(systemName: "character.cursor.ibeam").font(.system(size: 12))
+            }
+            .buttonStyle(.borderless)
+            .help("Type a path")
+            .opacity(hovering && !editing ? 0.7 : 0)
         }
-        .padding(.horizontal, 8)
-        .frame(height: 30)
-        .background(isActive ? AppSettings.shared.accent.opacity(0.06) : Color.clear)
+        .padding(.leading, 14)
+        .padding(.trailing, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 9)
         .contentShape(Rectangle())
         .onTapGesture { ws.activate(paneIndex) }
+        .onHover { hovering = $0 }
+        .task(id: tab.url) {
+            let url = tab.url
+            free = await Task.detached { FileSystem.freeSpace(url) }.value
+        }
     }
 
     private func startEditing() {
@@ -311,25 +366,19 @@ struct Crumb: View {
     @Environment(Workspace.self) private var ws
     let url: URL
     let isLast: Bool
-    let showIcon: Bool
     let action: () -> Void
     @State private var hovering = false
     @State private var targeted = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
-                if showIcon {
-                    Image(nsImage: IconCache.icon(for: url)).resizable().frame(width: 14, height: 14)
-                }
-                Text(FileSystem.displayName(url))
-                    .font(.system(size: 12, weight: isLast ? .semibold : .regular))
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(RoundedRectangle(cornerRadius: 5)
-                .fill(targeted ? AppSettings.shared.accent.opacity(0.25) : (hovering ? Color.primary.opacity(0.08) : .clear)))
+            Text(FileSystem.displayName(url))
+                .font(.system(size: 13, weight: isLast ? .semibold : .regular))
+                .lineLimit(1)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(targeted ? AppSettings.shared.accent.opacity(0.25) : (hovering ? Color.primary.opacity(0.07) : .clear)))
         }
         .buttonStyle(.plain)
         .foregroundStyle(isLast ? .primary : .secondary)
@@ -382,41 +431,5 @@ struct FilterBar: View {
         .frame(height: 30)
         .background(Color.primary.opacity(0.03))
         .onAppear { focused = true }
-    }
-}
-
-// MARK: - Status bar
-
-struct StatusBar: View {
-    @Bindable var tab: BrowserTab
-    @State private var free: Int64?
-
-    var body: some View {
-        let count = tab.displayed.count
-        let sel = tab.selection.count
-        HStack(spacing: 10) {
-            Text(sel > 0 ? "\(sel) of \(count) selected" : "\(count) item\(count == 1 ? "" : "s")")
-            if sel > 0 {
-                let bytes = tab.selectedItems.reduce(Int64(0)) { $0 + max(0, $1.size) }
-                if bytes > 0 { Text(Fmt.size(bytes)).foregroundStyle(.tertiary) }
-            }
-            Spacer()
-            if tab.viewMode == .grid {
-                Image(systemName: "photo").font(.system(size: 9))
-                Slider(value: $tab.iconSize, in: 32...256)
-                    .controlSize(.mini)
-                    .frame(width: 90)
-                Image(systemName: "photo").font(.system(size: 12))
-            }
-            if let free { Text("\(Fmt.size(free)) available") }
-        }
-        .font(.system(size: 11))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 10)
-        .frame(height: 24)
-        .task(id: tab.url) {
-            let url = tab.url
-            free = await Task.detached { FileSystem.freeSpace(url) }.value
-        }
     }
 }
