@@ -62,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.action = { AppDelegate.summonQuickOpen() }
         HotKeyManager.shared.refresh()
         _ = VolumeStore.shared
+        SoundFX.prepare()
         AppIconController.shared.start()
         FolderIndex.shared.start()
         NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { n in

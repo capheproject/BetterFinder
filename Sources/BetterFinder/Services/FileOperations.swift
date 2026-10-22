@@ -202,7 +202,7 @@ final class FileOperationCenter {
         }
         if let failure { toast(failure) }
         guard !moved.isEmpty else { return }
-        NSSound(named: "Pop")?.play()
+        SoundFX.trash()
         record("Moved \(Self.describe(moved.map(\.0))) to Trash", "trash", undo: {
             for (original, trashed) in moved { try FileManager.default.moveItem(at: trashed, to: original) }
         })
