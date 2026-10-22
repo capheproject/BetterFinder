@@ -5,9 +5,14 @@ A native macOS file manager (SwiftUI + AppKit) that takes the best of **Bloom** 
 ## Build & run
 
 ```bash
+./scripts/setup-signing.sh        # once: local signing identity, so folder permissions survive reinstalls
 ./scripts/build-app.sh            # builds build/BetterFinder.app
 ./scripts/build-app.sh --install  # also copies it to /Applications
 ```
+
+`setup-signing.sh` creates a self-signed certificate in its own keychain
+(`~/Library/Keychains/BetterFinderSigning.keychain-db`); it doesn't change your login keychain or trust settings.
+Without it, builds are signed ad-hoc and macOS asks for Desktop/Documents/Downloads access again after every reinstall.
 
 Requires macOS 14+ and Xcode (Swift 5.10+). No external dependencies.
 
