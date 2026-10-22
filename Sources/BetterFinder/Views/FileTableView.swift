@@ -30,7 +30,7 @@ struct FileTableView: NSViewRepresentable {
         table.allowsTypeSelect = true
         table.usesAlternatingRowBackgroundColors = false
         table.backgroundColor = .clear
-        table.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
+        table.columnAutoresizingStyle = .noColumnAutoresizing
         table.gridStyleMask = []
 
         func column(_ id: String, _ title: String, width: CGFloat, min: CGFloat, alignRight: Bool = false) -> NSTableColumn {
@@ -42,11 +42,15 @@ struct FileTableView: NSViewRepresentable {
             if alignRight { c.headerCell.alignment = .right }
             return c
         }
-        table.addTableColumn(column("name", "Name", width: 300, min: 140))
-        table.addTableColumn(column("modified", "Date Modified", width: 160, min: 90))
+        // ForkLift-like defaults: Name, Size, Date Modified. Kind and Date Created are a
+        // right-click on the header away.
+        table.addTableColumn(column("name", "Name", width: 320, min: 160))
         table.addTableColumn(column("size", "Size", width: 76, min: 50, alignRight: true))
-        table.addTableColumn(column("kind", "Kind", width: 120, min: 60))
-        let created = column("created", "Date Created", width: 160, min: 90)
+        table.addTableColumn(column("modified", "Date Modified", width: 112, min: 80))
+        let kind = column("kind", "Kind", width: 120, min: 60)
+        kind.isHidden = true
+        table.addTableColumn(kind)
+        let created = column("created", "Date Created", width: 112, min: 80)
         created.isHidden = true
         table.addTableColumn(created)
 
@@ -68,7 +72,7 @@ struct FileTableView: NSViewRepresentable {
         menu.delegate = c
         table.menu = menu
         table.headerView?.menu = c.headerMenu()
-        table.autosaveName = "BFFileTable"
+        table.autosaveName = "BFFileTable.v4"
         table.autosaveTableColumns = true
 
         let scroll = NSScrollView()
@@ -154,8 +158,8 @@ struct FileTableView: NSViewRepresentable {
             }
             let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? TextCellView) ?? TextCellView(identifier: id)
             switch id.rawValue {
-            case "modified": cell.set(Fmt.date(item.modified), alignRight: false)
-            case "created": cell.set(Fmt.date(item.created), alignRight: false)
+            case "modified": cell.set(Fmt.shortDate(item.modified), alignRight: false)
+            case "created": cell.set(Fmt.shortDate(item.created), alignRight: false)
             case "size": cell.set(item.isDirectory ? "--" : Fmt.size(item.size), alignRight: true)
             default: cell.set(item.kind, alignRight: false)
             }
@@ -177,6 +181,12 @@ struct FileTableView: NSViewRepresentable {
             if let row = table.selectedRowIndexes.last, row < items.count { tab.anchor = items[row].url }
             ws.activate(parent.paneIndex)
             if let editing = editingURL, !sel.contains(editing) { table.window?.makeFirstResponder(table) }
+        }
+
+        func tableViewColumnDidResize(_ notification: Notification) {
+            guard let column = notification.userInfo?["NSTableColumn"] as? NSTableColumn,
+                  column.identifier.rawValue != "name" else { return }
+            (table as? FileNSTableView)?.fitNameColumn()
         }
 
         func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
@@ -218,7 +228,10 @@ struct FileTableView: NSViewRepresentable {
             guard menu.identifier?.rawValue == "header" else { return }
             menu.removeAllItems()
             for column in table.tableColumns where column.identifier.rawValue != "name" {
-                let item = ClosureMenuItem(title: column.title) { column.isHidden.toggle() }
+                let item = ClosureMenuItem(title: column.title) { [weak self] in
+                    column.isHidden.toggle()
+                    (self?.table as? FileNSTableView)?.fitNameColumn()
+                }
                 item.state = column.isHidden ? .off : .on
                 menu.addItem(item)
             }
@@ -323,7 +336,34 @@ struct FileTableView: NSViewRepresentable {
 }
 
 final class FileNSTableView: NSTableView {
+    private var fitting = false
+
     override func drawBackground(inClipRect clipRect: NSRect) {}
+
+    /// The Name column absorbs whatever width the pane has left, so other columns never get
+    /// pushed off the edge and names get every spare point.
+    func fitNameColumn() {
+        guard !fitting, let clip = enclosingScrollView?.contentView,
+              let name = tableColumns.first(where: { $0.identifier.rawValue == "name" }) else { return }
+        fitting = true
+        defer { fitting = false }
+        let visible = tableColumns.filter { !$0.isHidden }
+        let others = visible.filter { $0 !== name }.reduce(CGFloat(0)) { $0 + $1.width }
+        let spacing = intercellSpacing.width * CGFloat(visible.count)
+        let insets: CGFloat = style == .inset ? 20 : 0
+        let target = max(name.minWidth, clip.bounds.width - others - spacing - insets)
+        if abs(name.width - target) > 0.5 { name.width = target }
+    }
+
+    override func resize(withOldSuperviewSize oldSize: NSSize) {
+        super.resize(withOldSuperviewSize: oldSize)
+        fitNameColumn()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        DispatchQueue.main.async { [weak self] in self?.fitNameColumn() }
+    }
 }
 
 final class AccentRowView: NSTableRowView {
@@ -382,24 +422,26 @@ final class NameCellView: NSTableCellView {
         field.translatesAutoresizingMaskIntoConstraints = false
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         field.focusRingType = .none
-        badge.translatesAutoresizingMaskIntoConstraints = false
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
         badge.setContentHuggingPriority(.required, for: .horizontal)
         badge.setContentCompressionResistancePriority(.required, for: .horizontal)
-        addSubview(icon)
-        addSubview(field)
-        addSubview(badge)
+        // A stack detaches hidden views, so the name gets the full width when there's no badge.
+        let stack = NSStackView(views: [icon, field, badge])
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 8
+        stack.detachesHiddenViews = true
+        stack.setCustomSpacing(6, after: field)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
         imageView = icon
         textField = field
         NSLayoutConstraint.activate([
-            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-            icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
             icon.widthAnchor.constraint(equalToConstant: 20),
             icon.heightAnchor.constraint(equalToConstant: 20),
-            field.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
-            field.centerYAnchor.constraint(equalTo: centerYAnchor),
-            badge.leadingAnchor.constraint(greaterThanOrEqualTo: field.trailingAnchor, constant: 6),
-            badge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            badge.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 

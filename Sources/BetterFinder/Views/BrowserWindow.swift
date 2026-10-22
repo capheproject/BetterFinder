@@ -71,12 +71,15 @@ struct MainContent: View {
             SidebarView()
                 .navigationSplitViewColumnWidth(min: 170, ideal: 210, max: 320)
         } detail: {
-            PanesLayoutView()
-                .inspector(isPresented: $ws.showInspector) {
-                    InspectorView()
-                        .inspectorColumnWidth(min: 240, ideal: 290, max: 460)
+            HStack(spacing: 0) {
+                PanesLayoutView()
+                if ws.showInspector {
+                    FloatingInspector()
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
-                .toolbar { BrowserToolbar() }
+            }
+            .animation(.spring(duration: 0.3), value: ws.showInspector)
+            .toolbar { BrowserToolbar() }
         }
         .navigationTitle(ws.activeTab.title)
         .navigationSubtitle(ws.activeTab.isSearch ? "" : (ws.activeTab.url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath)
@@ -192,6 +195,60 @@ struct ToolbarSeparatorSpacer: ToolbarContent {
     var body: some ToolbarContent {
         if #available(macOS 26.0, *) {
             ToolbarSpacer(.fixed, placement: .primaryAction)
+        }
+    }
+}
+
+/// The inspector as a floating, rounded panel inset from the window edges — a twin of the
+/// macOS 26 sidebar — instead of a flush column. Drag its left edge to resize.
+struct FloatingInspector: View {
+    @AppStorage("inspector.width") private var width: Double = 290
+    @State private var dragStart: Double?
+
+    var body: some View {
+        InspectorView()
+            .frame(width: width)
+            .frame(maxHeight: .infinity)
+            .modifier(FloatingPanelBackground(cornerRadius: 18))
+            .overlay(alignment: .leading) {
+                Color.clear
+                    .frame(width: 8)
+                    .contentShape(Rectangle())
+                    .offset(x: -4)
+                    .onHover { inside in
+                        if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                    }
+                    .gesture(DragGesture(minimumDistance: 1)
+                        .onChanged { value in
+                            let start = dragStart ?? width
+                            dragStart = start
+                            width = min(480, max(240, start - value.translation.width))
+                        }
+                        .onEnded { _ in dragStart = nil })
+            }
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+            .padding(.trailing, 8)
+            .padding(.leading, 2)
+    }
+}
+
+/// Liquid Glass on macOS 26, a material card on earlier systems.
+struct FloatingPanelBackground: ViewModifier {
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(macOS 26.0, *) {
+            content
+                .clipShape(shape)
+                .glassEffect(.regular, in: shape)
+        } else {
+            content
+                .clipShape(shape)
+                .background(.regularMaterial, in: shape)
+                .overlay(shape.stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
         }
     }
 }

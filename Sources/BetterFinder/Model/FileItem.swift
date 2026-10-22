@@ -72,6 +72,34 @@ enum Fmt {
 
     static func date(_ d: Date) -> String { d == .distantPast ? "--" : dateFormatter.string(from: d) }
 
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("jjmm")
+        return f
+    }()
+
+    private static let thisYearFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMd jjmm")
+        return f
+    }()
+
+    private static let olderFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("yMMMd")
+        return f
+    }()
+
+    /// Compact list-column dates: "Today 11:48", "Yesterday 15:13", "Oct 5 11:48", "Oct 8, 2025".
+    static func shortDate(_ d: Date) -> String {
+        guard d != .distantPast else { return "--" }
+        let cal = Calendar.current
+        if cal.isDateInToday(d) { return "Today \(timeFormatter.string(from: d))" }
+        if cal.isDateInYesterday(d) { return "Yesterday \(timeFormatter.string(from: d))" }
+        if cal.isDate(d, equalTo: Date(), toGranularity: .year) { return thisYearFormatter.string(from: d) }
+        return olderFormatter.string(from: d)
+    }
+
     static let stampFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"

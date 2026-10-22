@@ -15,7 +15,9 @@ fi
 APP=build/BetterFinder.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/BetterFinder"
+# SwiftPM stamps the binary with the minimum OS as its SDK version, which makes macOS 26 run the
+# app in compatibility mode (no Liquid Glass, no floating sidebar). Record the real SDK instead.
+vtool -set-build-version macos 14.0 "$(xcrun --show-sdk-version)" -replace -output "$APP/Contents/MacOS/BetterFinder" "$BIN" 2>/dev/null
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Sign with the stable local identity (see scripts/setup-signing.sh) so macOS keeps folder
