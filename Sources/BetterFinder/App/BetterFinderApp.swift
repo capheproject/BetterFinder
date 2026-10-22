@@ -14,8 +14,6 @@ struct BetterFinderApp: App {
         .defaultSize(width: 1320, height: 800)
         .windowToolbarStyle(.unified)
         .commands {
-            SidebarCommands()
-            InspectorCommands()
             BrowserCommands()
         }
 
@@ -161,6 +159,9 @@ struct BrowserCommands: Commands {
             Button("Delete Immediately…") { ws?.deleteImmediately() }.keyboardShortcut(.delete, modifiers: [.command, .option])
         }
         CommandGroup(before: .toolbar) {
+            Button("Show/Hide Sidebar") { ws?.showSidebar.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])
+            Button("Show/Hide Inspector") { ws?.showInspector.toggle() }.keyboardShortcut("i", modifiers: [.command, .option])
+            Divider()
             ForEach(Array(ViewMode.allCases.enumerated()), id: \.element) { i, m in
                 Button("as \(m.title)") { ws?.setViewMode(m) }.keyboardShortcut(KeyEquivalent(Character("\(i + 1)")))
             }

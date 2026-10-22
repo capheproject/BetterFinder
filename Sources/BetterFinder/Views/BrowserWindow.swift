@@ -66,29 +66,54 @@ struct MainContent: View {
     @Environment(Workspace.self) private var ws
 
     var body: some View {
-        @Bindable var ws = ws
-        NavigationSplitView {
-            SidebarView()
-                .navigationSplitViewColumnWidth(min: 170, ideal: 210, max: 320)
-        } detail: {
-            HStack(spacing: 0) {
-                // The panes take their new width in one step; only the inspector glides.
-                // Animating the panes' width would re-lay out every list row on every frame.
-                PanesLayoutView()
-                    .transaction { $0.animation = nil }
-                if ws.showInspector {
-                    FloatingInspector()
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .trailing).combined(with: .opacity)))
-                }
+        // Both side panels float over one continuous surface. The panes take their new width in
+        // a single step and only the panels glide; animating the panes' width (as a split view
+        // does) re-lays out every list row on every frame, which is what made the sidebar lag.
+        HStack(spacing: 0) {
+            if ws.showSidebar {
+                FloatingSidebar()
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             }
-            .animation(.snappy(duration: 0.22), value: ws.showInspector)
-            .toolbar { BrowserToolbar() }
+            PanesLayoutView()
+                .transaction { $0.animation = nil }
+            if ws.showInspector {
+                FloatingInspector()
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
         }
+        .animation(Workspace.panelAnimation, value: ws.showSidebar)
+        .animation(Workspace.panelAnimation, value: ws.showInspector)
+        .toolbar { BrowserToolbar() }
         .navigationTitle(ws.activeTab.title)
         .navigationSubtitle(ws.activeTab.isSearch || !AppSettings.shared.showPathInTitle
             ? "" : (ws.activeTab.url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath)
+    }
+}
+
+/// The sidebar as a floating panel, mirroring the inspector. Drag its right edge to resize.
+struct FloatingSidebar: View {
+    @AppStorage("sidebar.width") private var width: Double = 220
+    @State private var dragStart: Double?
+
+    var body: some View {
+        SidebarView()
+            .scrollContentBackground(.hidden)
+            .frame(width: width)
+            .frame(maxHeight: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(PanelSurface(cornerRadius: 18))
+            .overlay(alignment: .trailing) {
+                ResizeHandle { delta in
+                    let start = dragStart ?? width
+                    dragStart = start
+                    width = min(340, max(170, start + delta))
+                } onEnd: { dragStart = nil }
+                .offset(x: 4)
+            }
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+            .padding(.leading, 8)
+            .padding(.trailing, 2)
     }
 }
 
@@ -132,6 +157,15 @@ struct BrowserToolbar: ToolbarContent {
     var body: some ToolbarContent {
         @Bindable var ws = ws
         let tab = ws.activeTab
+        // While the sidebar is open, reserve its width so the sidebar button lands at its top-right
+        // corner and Back/Forward and the title start beside it, as with the system sidebar.
+        if ws.showSidebar {
+            SidebarToolbarSpacer()
+        }
+        ToolbarItem(placement: .navigation) {
+            Button { ws.showSidebar.toggle() } label: { Label("Sidebar", systemImage: "sidebar.left") }
+                .help(ws.showSidebar ? "Hide Sidebar (⌃⌘S)" : "Show Sidebar (⌃⌘S)")
+        }
         ToolbarItemGroup(placement: .navigation) {
             Button { tab.goBack() } label: { Label("Back", systemImage: "chevron.left") }
                 .disabled(!tab.canGoBack)
@@ -215,22 +249,15 @@ struct FloatingInspector: View {
         InspectorView()
             .frame(width: width)
             .frame(maxHeight: .infinity)
-            .modifier(FloatingPanelBackground(cornerRadius: 18))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(PanelSurface(cornerRadius: 18))
             .overlay(alignment: .leading) {
-                Color.clear
-                    .frame(width: 8)
-                    .contentShape(Rectangle())
-                    .offset(x: -4)
-                    .onHover { inside in
-                        if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-                    }
-                    .gesture(DragGesture(minimumDistance: 1)
-                        .onChanged { value in
-                            let start = dragStart ?? width
-                            dragStart = start
-                            width = min(480, max(240, start - value.translation.width))
-                        }
-                        .onEnded { _ in dragStart = nil })
+                ResizeHandle { delta in
+                    let start = dragStart ?? width
+                    dragStart = start
+                    width = min(480, max(240, start - delta))
+                } onEnd: { dragStart = nil }
+                .offset(x: -4)
             }
             .padding(.top, 6)
             .padding(.bottom, 8)
@@ -239,22 +266,54 @@ struct FloatingInspector: View {
     }
 }
 
+/// An invisible strip that resizes a panel when dragged, with the resize cursor on hover.
+struct ResizeHandle: View {
+    let onDrag: (CGFloat) -> Void
+    let onEnd: () -> Void
+
+    var body: some View {
+        Color.clear
+            .frame(width: 8)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+            }
+            .gesture(DragGesture(minimumDistance: 1)
+                .onChanged { onDrag($0.translation.width) }
+                .onEnded { _ in onEnd() })
+    }
+}
+
 /// Liquid Glass on macOS 26, a material card on earlier systems.
-struct FloatingPanelBackground: ViewModifier {
+struct PanelSurface: View {
     let cornerRadius: CGFloat
 
-    func body(content: Content) -> some View {
+    var body: some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if #available(macOS 26.0, *) {
-            content
-                .clipShape(shape)
-                .glassEffect(.regular, in: shape)
+            Color.clear.glassEffect(.regular, in: shape)
         } else {
-            content
-                .clipShape(shape)
-                .background(.regularMaterial, in: shape)
+            shape.fill(.regularMaterial)
                 .overlay(shape.stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
+        }
+    }
+}
+
+/// An empty, unstyled toolbar item as wide as the sidebar (less the traffic-light area).
+struct SidebarToolbarSpacer: ToolbarContent {
+    @AppStorage("sidebar.width") private var width: Double = 220
+
+    var body: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            ToolbarItem(placement: .navigation) {
+                Color.clear.frame(width: max(0, width - 116), height: 1)
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .navigation) {
+                Color.clear.frame(width: max(0, width - 116), height: 1)
+            }
         }
     }
 }

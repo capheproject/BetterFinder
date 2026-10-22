@@ -92,7 +92,13 @@ final class Workspace {
     var layout: PaneLayout { didSet { if activePaneIndex >= layout.paneCount { activePaneIndex = 0 }; persist() } }
     var activePaneIndex = 0
     var showInspector: Bool { didSet { persist() } }
+    var showSidebar = UserDefaults.standard.object(forKey: "sidebar.visible") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showSidebar, forKey: "sidebar.visible") }
+    }
     var syncBrowsing = false
+
+    /// One curve for both side panels: unhurried, with a soft ease-out (easeOutQuint).
+    static let panelAnimation = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.42)
     var showQuickOpen = false
     var batchRename: BatchRenameRequest?
     var isPinned = false { didSet { window?.level = isPinned ? .floating : .normal } }
