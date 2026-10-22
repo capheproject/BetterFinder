@@ -49,6 +49,7 @@ final class AppSettings {
     var foldersFirst: Bool { didSet { d.set(foldersFirst, forKey: "foldersFirst"); changed() } }
     var accentHex: String { didSet { d.set(accentHex, forKey: "accentHex"); changed() } }
     var tintWindow: Bool { didSet { d.set(tintWindow, forKey: "tintWindow") } }
+    var showPathInTitle: Bool { didSet { d.set(showPathInTitle, forKey: "showPathInTitle") } }
     var terminalBundleID: String { didSet { d.set(terminalBundleID, forKey: "terminalBundleID") } }
     var globalHotKey: Bool { didSet { d.set(globalHotKey, forKey: "globalHotKey"); HotKeyManager.shared.refresh() } }
     var favorites: [Favorite] { didSet { save(favorites, "favorites") } }
@@ -64,6 +65,7 @@ final class AppSettings {
             "foldersFirst": true,
             "accentHex": "#E8546A",
             "tintWindow": true,
+            "showPathInTitle": true,
             "terminalBundleID": "com.apple.Terminal",
             "globalHotKey": true,
         ])
@@ -71,6 +73,7 @@ final class AppSettings {
         foldersFirst = d.bool(forKey: "foldersFirst")
         accentHex = d.string(forKey: "accentHex") ?? "#E8546A"
         tintWindow = d.bool(forKey: "tintWindow")
+        showPathInTitle = d.bool(forKey: "showPathInTitle")
         terminalBundleID = d.string(forKey: "terminalBundleID") ?? "com.apple.Terminal"
         globalHotKey = d.bool(forKey: "globalHotKey")
         recentFolders = d.stringArray(forKey: "recentFolders") ?? []

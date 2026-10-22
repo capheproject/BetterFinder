@@ -72,17 +72,23 @@ struct MainContent: View {
                 .navigationSplitViewColumnWidth(min: 170, ideal: 210, max: 320)
         } detail: {
             HStack(spacing: 0) {
+                // The panes take their new width in one step; only the inspector glides.
+                // Animating the panes' width would re-lay out every list row on every frame.
                 PanesLayoutView()
+                    .transaction { $0.animation = nil }
                 if ws.showInspector {
                     FloatingInspector()
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)))
                 }
             }
-            .animation(.spring(duration: 0.3), value: ws.showInspector)
+            .animation(.snappy(duration: 0.22), value: ws.showInspector)
             .toolbar { BrowserToolbar() }
         }
         .navigationTitle(ws.activeTab.title)
-        .navigationSubtitle(ws.activeTab.isSearch ? "" : (ws.activeTab.url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath)
+        .navigationSubtitle(ws.activeTab.isSearch || !AppSettings.shared.showPathInTitle
+            ? "" : (ws.activeTab.url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath)
     }
 }
 

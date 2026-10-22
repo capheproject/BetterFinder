@@ -63,11 +63,8 @@ struct PaneView: View {
                 .opacity(isActive && multi ? 1 : 0)
                 .animation(.easeOut(duration: 0.2), value: isActive)
         }
-        .background(GeometryReader { geo in
-            Color.clear
-                .onAppear { ws.paneFrames[index] = geo.frame(in: .global) }
-                .onChange(of: geo.frame(in: .global)) { _, f in ws.paneFrames[index] = f }
-        })
+        // Lightweight frame tracking (no view re-render per frame) for click-to-activate.
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { ws.paneFrames[index] = $0 }
     }
 }
 
@@ -216,6 +213,7 @@ struct PaneHeader: View {
     @State private var text = ""
     @State private var hovering = false
     @State private var free: Int64?
+    @State private var crumbScroller = Debouncer()
     @FocusState private var fieldFocused: Bool
 
     private var crumbs: [URL] {
@@ -300,10 +298,11 @@ struct PaneHeader: View {
                             }
                         }
                         // Keep the current folder in view when the path is longer than the pane.
-                        .onAppear { proxy.scrollTo(list.last, anchor: .trailing) }
+                        .onAppear { crumbScroller.schedule(after: 0.05) { proxy.scrollTo(list.last, anchor: .trailing) } }
                         .onChange(of: tab.url) { _, _ in proxy.scrollTo(list.last, anchor: .trailing) }
+                        // Re-pin once the width settles (e.g. after a panel slides), not on every frame.
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in
-                            proxy.scrollTo(list.last, anchor: .trailing)
+                            crumbScroller.schedule(after: 0.12) { proxy.scrollTo(list.last, anchor: .trailing) }
                         }
                     }
                     .onTapGesture(count: 2) { startEditing() }
@@ -431,5 +430,18 @@ struct FilterBar: View {
         .frame(height: 30)
         .background(Color.primary.opacity(0.03))
         .onAppear { focused = true }
+    }
+}
+
+/// Runs only the last of a burst of calls, after a short quiet period. A class so scheduling
+/// doesn't trigger SwiftUI re-renders.
+final class Debouncer {
+    private var work: DispatchWorkItem?
+
+    func schedule(after delay: TimeInterval, _ action: @escaping () -> Void) {
+        work?.cancel()
+        let item = DispatchWorkItem(block: action)
+        work = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 }

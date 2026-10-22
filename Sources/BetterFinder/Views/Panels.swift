@@ -259,6 +259,9 @@ struct GeneralSettings: View {
                 Toggle("Show hidden files", isOn: $s.showHidden)
                 Toggle("Keep folders on top", isOn: $s.foldersFirst)
             }
+            Section("Window") {
+                Toggle("Show full path in title bar", isOn: $s.showPathInTitle)
+            }
             Section("Quick Open") {
                 Toggle("Open Quick Open from anywhere with ⌘⇧↩", isOn: $s.globalHotKey)
             }

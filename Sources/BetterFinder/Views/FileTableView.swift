@@ -81,6 +81,9 @@ struct FileTableView: NSViewRepresentable {
         scroll.hasHorizontalScroller = false
         scroll.autohidesScrollers = true
         scroll.drawsBackground = false
+        scroll.wantsLayer = true
+        scroll.contentView.wantsLayer = true
+        scroll.layerContentsRedrawPolicy = .onSetNeedsDisplay
         tab.tableView = table
         return scroll
     }
