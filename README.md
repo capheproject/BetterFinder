@@ -22,7 +22,7 @@ Requires macOS 14+ and Xcode (Swift 5.10+). No external dependencies.
 |---|---|
 | **Multi-pane layouts** | Single, side-by-side, stacked, three columns, one + two, four panes (⌃1–⌃6). Every pane has its own tabs, history, path bar and view mode. `⇥` switches panes. |
 | **Three views** | List (NSTableView: type-select, multi-drag, drop onto folders, inline rename, column chooser), Icons with live thumbnails and size slider, Miller Columns with preview. |
-| **Quick Open** (`⌘K`, `⇧⌘G`, and `⌘⇧↩` from any app) | Paths with `⇥` completion, Spotlight file search, favorites, recent folders and every command in one palette. |
+| **Quick Open** (`⌘K`, `⇧⌘G`, and `⌘⇧↩` from any app) | Paths with `⇥` completion, instant folder search from a live in-memory index, Spotlight file search, favorites, recent folders and every command in one palette. |
 | **Commander keys** | F5 copy / F6 move to the other pane, F7 new folder, F8 trash, F2 rename, Space Quick Look (arrow keys keep working in the panel). |
 | **Footprints** | Every copy, move, rename, trash, tag change, compression and image edit is logged and individually undoable (`⌘Z` for the latest). |
 | **Activity** | Background copy/move/compress/extract with progress, conflict prompt (Keep Both / Replace-to-Trash / Skip). |

@@ -84,13 +84,25 @@ final class QuickOpenModel {
                 ranked.append((PaletteItem(title: c.title, subtitle: "Command", symbol: c.symbol, kind: .command(c.action), badge: "Command"), sc))
             }
         }
-        local += ranked.sorted { $0.score > $1.score }.prefix(12).map(\.item)
+        // Every folder on disk, matched instantly from the in-memory index.
+        for (order, m) in FolderIndex.shared.search(q, limit: 30, recent: settings.recentFolders).enumerated() {
+            guard seenPaths.insert(m.path).inserted else { continue }
+            let url = URL(fileURLWithPath: m.path)
+            let base = Self.score(url.lastPathComponent, q) ?? 30
+            // Index order (recency, depth) breaks ties between equally good name matches.
+            ranked.append((PaletteItem(title: url.lastPathComponent, subtitle: abbreviate(url.deletingLastPathComponent().path), symbol: nil, kind: .location(url)), base + 2 - order / 10))
+        }
+        local += ranked.enumerated()
+            .sorted { $0.element.score != $1.element.score ? $0.element.score > $1.element.score : $0.offset < $1.offset }
+            .prefix(30)
+            .map(\.element.item)
         results = local
         guard q.count >= 2 else { return }
+        // Spotlight adds files; folders are already on screen, so this never holds anything up.
         isSearching = true
         let work = DispatchWorkItem { [weak self] in self?.runSpotlight(q, local: local) }
         pending = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
     }
 
     private func runSpotlight(_ q: String, local: [PaletteItem]) {
@@ -101,30 +113,37 @@ final class QuickOpenModel {
         spotlight.run(query: query, scopes: scopes, limit: 600) { [weak self] urls, finished in
             guard let self, self.query.trimmingCharacters(in: .whitespaces) == q else { return }
             let lower = q.lowercased()
-            let candidates = urls
-                .filter { u in
-                    let p = u.path
-                    let cloud = p.contains("/Library/CloudStorage/") || p.contains("/Library/Mobile Documents/")
-                    return !seen.contains(p) && (cloud || !p.contains("/Library/")) && !p.contains("/.") && !p.contains("/node_modules/")
+            // Filtering and ranking stat each result, so do it off the main thread.
+            DispatchQueue.global(qos: .userInitiated).async {
+                let candidates = urls
+                    .filter { u in
+                        let p = u.path
+                        let cloud = p.contains("/Library/CloudStorage/") || p.contains("/Library/Mobile Documents/")
+                        return !seen.contains(p) && (cloud || !p.contains("/Library/")) && !p.contains("/.") && !p.contains("/node_modules/")
+                    }
+                    .map { u -> (URL, Int) in
+                        let name = u.lastPathComponent.lowercased()
+                        var s = 0
+                        if name == lower { s += 100 }
+                        if name.hasPrefix(lower) { s += 40 }
+                        if FileSystem.isDirectory(u) { s += 15 }
+                        s -= u.pathComponents.count
+                        return (u, s)
+                    }
+                    .sorted { $0.1 > $1.1 }
+                    .prefix(40)
+                DispatchQueue.main.async {
+                    guard self.query.trimmingCharacters(in: .whitespaces) == q else { return }
+                    let found = candidates.map { u, _ in
+                        PaletteItem(title: u.lastPathComponent, subtitle: self.abbreviate(u.deletingLastPathComponent().path), symbol: nil, kind: .location(u))
+                    }
+                    // Keep the highlighted row on the same result as Spotlight's results land.
+                    let selectedID = self.results.indices.contains(self.selectedIndex) ? self.results[self.selectedIndex].id : nil
+                    self.results = local + found
+                    if let selectedID, let i = self.results.firstIndex(where: { $0.id == selectedID }) { self.selectedIndex = i }
+                    if finished { self.isSearching = false }
                 }
-                .map { u -> (URL, Int) in
-                    let name = u.lastPathComponent.lowercased()
-                    var s = 0
-                    if name == lower { s += 100 }
-                    if name.hasPrefix(lower) { s += 40 }
-                    if FileSystem.isDirectory(u) { s += 15 }
-                    s -= u.pathComponents.count
-                    return (u, s)
-                }
-                .sorted { $0.1 > $1.1 }
-                .prefix(40)
-            let found = candidates.map { u, _ in
-                PaletteItem(title: u.lastPathComponent, subtitle: self.abbreviate(u.deletingLastPathComponent().path), symbol: nil, kind: .location(u))
             }
-            let previous = self.selectedIndex
-            self.results = local + found
-            self.selectedIndex = min(previous, max(0, self.results.count - 1))
-            if finished { self.isSearching = false }
         }
     }
 
