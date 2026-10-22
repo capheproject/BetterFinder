@@ -201,7 +201,8 @@ final class Workspace {
 
     func focusActivePane() {
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
+            // Never pull focus away from Quick Open while it's on screen.
+            guard let self, !self.showQuickOpen else { return }
             let tab = self.activeTab
             if tab.viewMode == .list, let table = tab.tableView {
                 self.window?.makeFirstResponder(table)
@@ -627,7 +628,7 @@ final class Workspace {
         })
         e.append(.divider)
         if single != nil {
-            e.append(.action("Rename", "pencil") { [weak self] in self?.activeTab.renamingURL = urls[0] })
+            e.append(.action("Rename", "pencil") { tab.renamingURL = urls[0] })
         } else {
             e.append(.action("Rename \(items.count) Items…", "character.cursor.ibeam") { [weak self] in
                 self?.batchRename = BatchRenameRequest(urls: urls)

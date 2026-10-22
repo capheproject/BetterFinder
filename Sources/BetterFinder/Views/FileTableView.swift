@@ -94,7 +94,9 @@ struct FileTableView: NSViewRepresentable {
         tab.tableView = c.table
         let table = c.table!
 
-        if c.items != items || c.git != git || c.accentHex != accentHex {
+        // A folder change mid-rename would end the edit and commit a half-typed name; hold the
+        // reload until editing finishes (the coordinator reloads then).
+        if c.editingURL == nil, c.items != items || c.git != git || c.accentHex != accentHex {
             c.items = items
             c.git = git
             c.accentHex = accentHex
@@ -122,8 +124,10 @@ struct FileTableView: NSViewRepresentable {
             DispatchQueue.main.async { if tab.scrollTarget == target { tab.scrollTarget = nil } }
         }
 
-        if let r = renamingURL, c.editingURL != r, let row = items.firstIndex(where: { $0.url == r }) {
-            DispatchQueue.main.async { c.beginEditing(row: row) }
+        if let r = renamingURL, c.editingURL != r, items.contains(where: { $0.url == r }) {
+            DispatchQueue.main.async {
+                if let row = c.items.firstIndex(where: { $0.url == r }) { c.beginEditing(row: row) }
+            }
         }
     }
 
@@ -328,6 +332,13 @@ struct FileTableView: NSViewRepresentable {
             field.isEditable = false
             field.isSelectable = false
             editingURL = nil
+            // Catch up on any folder changes that arrived while editing.
+            if items != parent.items {
+                items = parent.items
+                applyingSelection = true
+                table.reloadData()
+                applyingSelection = false
+            }
             if editCancelled {
                 field.stringValue = url.lastPathComponent
                 ws.cancelRename(in: tab)

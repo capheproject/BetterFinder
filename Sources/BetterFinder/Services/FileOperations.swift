@@ -255,22 +255,25 @@ final class FileOperationCenter {
         let changes = pairs.filter { $0.0.lastPathComponent != $0.1 && !$0.1.isEmpty }
         guard !changes.isEmpty else { return }
         var temps: [(original: URL, temp: URL, final: URL)] = []
+        var renamed: [(URL, URL)] = []
         do {
             for (url, name) in changes {
                 let tmp = url.deletingLastPathComponent().appendingPathComponent(".bf-rename-\(UUID().uuidString)")
                 try fm.moveItem(at: url, to: tmp)
                 temps.append((url, tmp, url.deletingLastPathComponent().appendingPathComponent(name)))
             }
-            var done: [(URL, URL)] = []
             for t in temps {
                 let final = FileSystem.exists(t.final) ? FileSystem.uniqueURL(for: t.final) : t.final
                 try fm.moveItem(at: t.temp, to: final)
-                done.append((t.original, final))
+                renamed.append((t.original, final))
             }
+            let done = renamed
             record("Renamed \(done.count) items", "character.cursor.ibeam", undo: {
                 for (original, final) in done { try FileManager.default.moveItem(at: final, to: original) }
             })
         } catch {
+            // Put everything back: finished renames and items still parked under temp names.
+            for (original, final) in renamed { try? fm.moveItem(at: final, to: original) }
             for t in temps where FileSystem.exists(t.temp) { try? fm.moveItem(at: t.temp, to: t.original) }
             toast(error.localizedDescription)
         }
@@ -328,6 +331,11 @@ final class FileOperationCenter {
     func compress(_ urls: [URL]) {
         guard let first = urls.first else { return }
         let dir = first.deletingLastPathComponent()
+        // zip stores paths relative to one folder; search results can span several.
+        guard urls.allSatisfy({ $0.deletingLastPathComponent().standardizedFileURL == dir.standardizedFileURL }) else {
+            toast("Select items from a single folder to compress them together.")
+            return
+        }
         let name = urls.count == 1 ? "\(first.lastPathComponent).zip" : "Archive.zip"
         let dst = FileSystem.uniqueURL(for: dir.appendingPathComponent(name))
         let activity = startActivity("Compressing \(Self.describe(urls))", "archivebox", total: 1)
@@ -406,14 +414,24 @@ final class FileOperationCenter {
     func rotate(_ urls: [URL], clockwise: Bool) {
         var backups: [(URL, URL)] = []
         for u in urls {
+            // Bake in the EXIF orientation first (phone photos store "rotate 90°" as a tag), then
+            // rotate the upright pixels and write orientation 1 so viewers don't rotate them again.
             guard let src = CGImageSourceCreateWithURL(u as CFURL, nil),
                   let type = CGImageSourceGetType(src),
-                  let img = CGImageSourceCreateImageAtIndex(src, 0, nil),
+                  let img = Self.uprightImage(src),
                   let rotated = Self.rotated(img, clockwise: clockwise) else { continue }
+            var props = (CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]) ?? [:]
+            props[kCGImagePropertyOrientation] = 1
+            if var tiff = props[kCGImagePropertyTIFFDictionary] as? [CFString: Any] {
+                tiff[kCGImagePropertyTIFFOrientation] = 1
+                props[kCGImagePropertyTIFFDictionary] = tiff
+            }
+            props[kCGImagePropertyPixelWidth] = nil
+            props[kCGImagePropertyPixelHeight] = nil
             let backup = fm.temporaryDirectory.appendingPathComponent("bf-\(UUID().uuidString)-\(u.lastPathComponent)")
             guard (try? fm.copyItem(at: u, to: backup)) != nil,
                   let dst = CGImageDestinationCreateWithURL(u as CFURL, type, 1, nil) else { continue }
-            CGImageDestinationAddImage(dst, rotated, nil)
+            CGImageDestinationAddImage(dst, rotated, props as CFDictionary)
             if CGImageDestinationFinalize(dst) { backups.append((u, backup)) }
         }
         guard !backups.isEmpty else { return }
@@ -442,6 +460,20 @@ final class FileOperationCenter {
         record("Converted \(Self.describe(urls)) to \(ext.uppercased())", "photo", undo: {
             for c in created { try FileManager.default.trashItem(at: c, resultingItemURL: nil) }
         })
+    }
+
+    /// The full-size image with its EXIF orientation applied.
+    static func uprightImage(_ src: CGImageSource) -> CGImage? {
+        let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+        let w = props?[kCGImagePropertyPixelWidth] as? Int ?? 0
+        let h = props?[kCGImagePropertyPixelHeight] as? Int ?? 0
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(w, h, 1),
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary)
+            ?? CGImageSourceCreateImageAtIndex(src, 0, nil)
     }
 
     static func rotated(_ img: CGImage, clockwise: Bool) -> CGImage? {

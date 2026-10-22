@@ -300,7 +300,9 @@ enum Thumbnails {
     private static let cache = NSCache<NSString, NSImage>()
 
     static func thumbnail(for url: URL, size: CGFloat) async -> NSImage? {
-        let key = "\(url.path)#\(Int(size))" as NSString
+        // Include the modification date so edited files (e.g. a rotated photo) refresh.
+        let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)?.timeIntervalSince1970 ?? 0
+        let key = "\(url.path)#\(Int(size))#\(modified)" as NSString
         if let c = cache.object(forKey: key) { return c }
         let scale = await MainActor.run { NSScreen.main?.backingScaleFactor ?? 2 }
         let req = QLThumbnailGenerator.Request(fileAt: url, size: CGSize(width: size, height: size), scale: scale, representationTypes: .thumbnail)

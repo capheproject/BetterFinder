@@ -304,10 +304,16 @@ final class BrowserTab: Identifiable {
         refreshDisplayed()
         spotlight.run(query: query, scopes: [FileSystem.home.path], limit: 3000) { [weak self] urls, finished in
             guard let self, self.searchTitle == title else { return }
-            let items = urls.compactMap(FileItem.init(url:))
-            self.results = items
-            if finished { self.isLoading = false }
-            self.refreshDisplayed()
+            // Reading file details for thousands of results is too slow for the main thread.
+            DispatchQueue.global(qos: .userInitiated).async {
+                let items = urls.compactMap(FileItem.init(url:))
+                DispatchQueue.main.async {
+                    guard self.searchTitle == title, items.count >= self.results.count || finished else { return }
+                    self.results = items
+                    if finished { self.isLoading = false }
+                    self.refreshDisplayed()
+                }
+            }
         }
     }
 }

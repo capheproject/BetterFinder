@@ -29,6 +29,8 @@ final class QuickOpenModel {
     var results: [PaletteItem] = []
     var selectedIndex = 0
     var isSearching = false
+    /// Bumped every time the palette is opened so the field re-claims keyboard focus.
+    var focusToken = 0
     @ObservationIgnored weak var workspace: Workspace?
     @ObservationIgnored private let spotlight = SpotlightSearch()
     @ObservationIgnored private var pending: DispatchWorkItem?
@@ -38,6 +40,7 @@ final class QuickOpenModel {
     func reset(prefill: String) {
         query = prefill
         selectedIndex = 0
+        focusToken += 1
         update()
     }
 
@@ -54,7 +57,7 @@ final class QuickOpenModel {
         var local: [PaletteItem] = []
         let settings = AppSettings.shared
         if q.isEmpty {
-            local += settings.recentFolders.prefix(8).map { path in
+            local += settings.recentFolders.filter { FileManager.default.fileExists(atPath: $0) }.prefix(8).map { path in
                 let url = URL(fileURLWithPath: path)
                 return PaletteItem(title: FileSystem.displayName(url), subtitle: abbreviate(path), symbol: nil, kind: .location(url), badge: "Recent")
             }
@@ -62,23 +65,26 @@ final class QuickOpenModel {
             results = local
             return
         }
-        if let ws = workspace {
-            local += ws.paletteCommands
-                .compactMap { c in Self.score(c.title, q).map { (c, $0) } }
-                .sorted { $0.1 > $1.1 }
-                .prefix(6)
-                .map { c, _ in PaletteItem(title: c.title, subtitle: "Command", symbol: c.symbol, kind: .command(c.action), badge: "Command") }
+        // Rank commands, favorites and recent folders together by match quality, so typing
+        // "down" picks Downloads rather than "New Markdown". Folders win ties; duplicates go.
+        var ranked: [(item: PaletteItem, score: Int)] = []
+        var seenPaths = Set<String>()
+        for fav in settings.favorites {
+            guard let sc = Self.score(fav.name, q), seenPaths.insert(fav.url.standardizedFileURL.path).inserted else { continue }
+            ranked.append((PaletteItem(title: fav.name, subtitle: abbreviate(fav.path), symbol: nil, kind: .location(fav.url), badge: "Favorite"), sc + 5))
         }
-        local += settings.favorites
-            .filter { Self.score($0.name, q) != nil }
-            .map { PaletteItem(title: $0.name, subtitle: abbreviate($0.path), symbol: nil, kind: .location($0.url), badge: "Favorite") }
-        local += settings.recentFolders
-            .filter { Self.score(($0 as NSString).lastPathComponent, q) != nil }
-            .prefix(5)
-            .map { path in
-                let url = URL(fileURLWithPath: path)
-                return PaletteItem(title: FileSystem.displayName(url), subtitle: abbreviate(path), symbol: nil, kind: .location(url), badge: "Recent")
+        for path in settings.recentFolders where FileManager.default.fileExists(atPath: path) {
+            let url = URL(fileURLWithPath: path)
+            guard let sc = Self.score(url.lastPathComponent, q), seenPaths.insert(url.standardizedFileURL.path).inserted else { continue }
+            ranked.append((PaletteItem(title: FileSystem.displayName(url), subtitle: abbreviate(path), symbol: nil, kind: .location(url), badge: "Recent"), sc + 4))
+        }
+        if let ws = workspace {
+            for c in ws.paletteCommands {
+                guard let sc = Self.score(c.title, q) else { continue }
+                ranked.append((PaletteItem(title: c.title, subtitle: "Command", symbol: c.symbol, kind: .command(c.action), badge: "Command"), sc))
             }
+        }
+        local += ranked.sorted { $0.score > $1.score }.prefix(12).map(\.item)
         results = local
         guard q.count >= 2 else { return }
         isSearching = true
@@ -220,8 +226,6 @@ final class QuickOpenModel {
 
 struct QuickOpenView: View {
     @Environment(Workspace.self) private var ws
-    @FocusState private var focused: Bool
-
     var body: some View {
         @Bindable var model = ws.quickOpen
         let accent = AppSettings.shared.accent
@@ -231,10 +235,9 @@ struct QuickOpenView: View {
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(accent)
                     .frame(width: 22)
-                TextField("Go to folder, search files, or run a command…", text: $model.query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 19))
-                    .focused($focused)
+                PaletteSearchField(text: $model.query,
+                                   placeholder: "Go to folder, search files, or run a command…",
+                                   focusToken: model.focusToken)
                 if model.isSearching {
                     ProgressView().controlSize(.small)
                 }
@@ -285,7 +288,6 @@ struct QuickOpenView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
         .shadow(color: .black.opacity(0.28), radius: 30, y: 14)
-        .onAppear { focused = true }
     }
 }
 
@@ -345,5 +347,92 @@ struct Hint: View {
             Text(text).font(.system(size: 11))
         }
         .foregroundStyle(.secondary)
+    }
+}
+
+/// The palette's search field. Backed by AppKit so it can claim keyboard focus reliably: once
+/// it's actually in the window, again on the next run-loop turn (beating any queued focus
+/// change), and when the window becomes key (the palette can open from another app).
+struct PaletteSearchField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let focusToken: Int
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> FocusClaimingTextField {
+        let f = FocusClaimingTextField()
+        f.isBordered = false
+        f.drawsBackground = false
+        f.focusRingType = .none
+        f.font = .systemFont(ofSize: 19)
+        f.placeholderString = placeholder
+        f.lineBreakMode = .byTruncatingTail
+        f.cell?.isScrollable = true
+        f.cell?.wraps = false
+        f.stringValue = text
+        f.delegate = context.coordinator
+        return f
+    }
+
+    func updateNSView(_ f: FocusClaimingTextField, context: Context) {
+        context.coordinator.parent = self
+        if f.stringValue != text {
+            f.stringValue = text
+            // Programmatic changes (Tab completion, Go to Folder's "~/") leave the caret at the end.
+            f.currentEditor()?.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        }
+        if context.coordinator.lastToken != focusToken {
+            context.coordinator.lastToken = focusToken
+            f.claimFocus()
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: PaletteSearchField
+        var lastToken: Int
+
+        init(_ parent: PaletteSearchField) {
+            self.parent = parent
+            self.lastToken = parent.focusToken
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let f = obj.object as? NSTextField, parent.text != f.stringValue else { return }
+            parent.text = f.stringValue
+        }
+    }
+}
+
+final class FocusClaimingTextField: NSTextField {
+    private var keyObserver: NSObjectProtocol?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil { claimFocus() }
+    }
+
+    func claimFocus() {
+        guard let window else { return }
+        focusNow()
+        DispatchQueue.main.async { [weak self] in self?.focusNow() }
+        if !window.isKeyWindow {
+            if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
+            keyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
+                self?.focusNow()
+                if let o = self?.keyObserver { NotificationCenter.default.removeObserver(o) }
+                self?.keyObserver = nil
+            }
+        }
+    }
+
+    private func focusNow() {
+        guard let window, currentEditor() == nil || window.firstResponder !== currentEditor() else { return }
+        window.makeFirstResponder(self)
+        currentEditor()?.selectedRange = NSRange(location: (stringValue as NSString).length, length: 0)
+    }
+
+    deinit {
+        if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
     }
 }
