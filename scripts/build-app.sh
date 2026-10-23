@@ -44,5 +44,8 @@ echo "Built $APP"
 if [[ "${1:-}" == "--install" ]]; then
   rm -rf /Applications/BetterFinder.app
   cp -R "$APP" /Applications/
+  # Keep Launch Services from picking the build copy (same bundle ID) for opens and reveals,
+  # which would start a second instance next to the installed one.
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$PWD/$APP" 2>/dev/null || true
   echo "Installed to /Applications/BetterFinder.app"
 fi

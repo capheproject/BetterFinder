@@ -33,7 +33,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var openMainWindow: (() -> Void)?
     private var monitor: Any?
 
+    /// The instance that was already running when this one launched (a second copy of the app, e.g.
+    /// the build folder's, picked by Launch Services). This one forwards its requests there and quits.
+    private var primary: NSRunningApplication?
+
     func applicationWillFinishLaunching(_ notification: Notification) {
+        primary = Self.earlierInstance()
+        if let primary {
+            NSApp.setActivationPolicy(.prohibited)
+            primary.activate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { NSApp.terminate(nil) }
+        }
         // Installed before launch completes so a reveal that launched the app isn't missed.
         NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(handleReveal(_:withReplyEvent:)),
                                                      forEventClass: AEEventClass(kAEMiscStandards),
@@ -42,13 +52,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// "Show in Finder" from other apps, when BetterFinder is the file viewer.
     @objc private func handleReveal(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
+        if forwardToPrimary(ExternalOpen.urls(from: event)) { return }
         ExternalOpen.handle(ExternalOpen.urls(from: event), reveal: true)
+    }
+
+    /// Another BetterFinder that launched before this one, if any. The launch-date tiebreak keeps
+    /// two copies starting at once from both quitting.
+    private static func earlierInstance() -> NSRunningApplication? {
+        let me = NSRunningApplication.current
+        guard let id = Bundle.main.bundleIdentifier else { return nil }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: id).first { other in
+            guard other != me, !other.isTerminated else { return false }
+            let (a, b) = (other.launchDate ?? .distantPast, me.launchDate ?? .distantFuture)
+            return a < b || (a == b && other.processIdentifier < me.processIdentifier)
+        }
+    }
+
+    /// Hands open/reveal requests to the running instance; it treats files as reveals.
+    private func forwardToPrimary(_ urls: [URL]) -> Bool {
+        guard let primary else { return false }
+        if !urls.isEmpty, let app = primary.bundleURL {
+            NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        }
+        return true
     }
 
     /// Open-documents requests. Folders come from Launch Services (Dock stacks, `open` in
     /// Terminal); files come from "Show in Finder" — AppKit delivers a reveal to the NSFileViewer
     /// app as an open request for the file itself, and BetterFinder only opens folders.
     func application(_ application: NSApplication, open urls: [URL]) {
+        if forwardToPrimary(urls) { return }
         let folders = urls.filter { FileSystem.isDirectory($0) && !NSWorkspace.shared.isFilePackage(atPath: $0.path) }
         let files = urls.filter { !folders.contains($0) }
         if !folders.isEmpty { ExternalOpen.handle(folders, reveal: false) }
@@ -56,6 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if primary != nil {
+            // Duplicate instance: show nothing and skip the hotkey, index and other services.
+            NSApp.windows.forEach { $0.orderOut(nil) }
+            return
+        }
         NSApp.setActivationPolicy(.regular)
         NSWindow.allowsAutomaticWindowTabbing = false
         installKeyMonitor()
