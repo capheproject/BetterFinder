@@ -14,6 +14,9 @@ struct BetterFinderApp: App {
         }
         .defaultSize(width: 1320, height: 800)
         .windowToolbarStyle(.unified)
+        // SwiftUI otherwise opens a new window for every open/reveal request (Alfred, "Show in
+        // Finder"); AppDelegate routes those into the existing window instead.
+        .handlesExternalEvents(matching: [])
         .commands {
             BrowserCommands()
         }
@@ -24,6 +27,7 @@ struct BetterFinderApp: App {
         }
         .defaultSize(width: 480, height: 560)
         .windowToolbarStyle(.unifiedCompact)
+        .handlesExternalEvents(matching: [])
 
         Settings { SettingsView() }
     }
