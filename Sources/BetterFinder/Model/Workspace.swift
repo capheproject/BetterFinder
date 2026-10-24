@@ -284,6 +284,20 @@ final class Workspace {
         focusActivePane()
     }
 
+    func toggleTag(_ name: String, on urls: [URL]? = nil) {
+        let urls = urls ?? targetURLs
+        guard !urls.isEmpty else { return }
+        ops.toggleTag(name, on: urls)
+        refreshAll()
+    }
+
+    func clearTags(on urls: [URL]? = nil) {
+        let urls = urls ?? targetURLs
+        guard !urls.isEmpty else { return }
+        ops.clearTags(urls)
+        refreshAll()
+    }
+
     func showTag(_ tag: String) {
         activeTab.showSpotlight(title: "Tag: \(tag)", query: "kMDItemUserTags == \"\(SpotlightSearch.escape(tag))\"c")
     }
@@ -672,19 +686,9 @@ final class Workspace {
             })
         }
         e.append(.divider)
-        var tagEntries: [MenuEntry] = FinderTag.standard.map { tag in
-            let has = items.allSatisfy { $0.tags.contains(tag.name) }
-            return .action((has ? "✓ " : "") + tag.name, "circle.fill") { [weak self] in
-                self?.ops.toggleTag(tag.name, on: urls)
-                self?.refreshAll()
-            }
-        }
-        tagEntries.append(.divider)
-        tagEntries.append(.action("Remove All Tags", "tag.slash") { [weak self] in
-            self?.ops.clearTags(urls)
-            self?.refreshAll()
-        })
-        e.append(.submenu("Tags", "tag", tagEntries))
+        e.append(.tags(TagMenuState(items: items),
+                       toggle: { [weak self] name in self?.toggleTag(name, on: urls) },
+                       clear: { [weak self] in self?.clearTags(on: urls) }))
         e.append(.divider)
         if let single, single.isFolder {
             e.append(.action("Open in Terminal", "terminal") { [weak self] in self?.openInTerminal(single.url) })

@@ -210,6 +210,14 @@ struct BrowserCommands: Commands {
             .keyboardShortcut(.downArrow, modifiers: [.command, .option])
             Button("Quick Look") { ws?.quickLook() }.keyboardShortcut("y")
             Button("Get Info") { ws?.showInspector.toggle() }.keyboardShortcut("i")
+            Menu("Tags") {
+                ForEach(Array(FinderTag.standard.enumerated()), id: \.element) { i, tag in
+                    Button(tag.name) { ws?.toggleTag(tag.name) }
+                        .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: [.control, .option])
+                }
+                Divider()
+                Button("Remove All Tags") { ws?.clearTags() }.keyboardShortcut("0", modifiers: [.control, .option])
+            }
         }
         CommandGroup(replacing: .saveItem) {
             Button("Close Tab") { ws?.closeTabOrWindow() }.keyboardShortcut("w")

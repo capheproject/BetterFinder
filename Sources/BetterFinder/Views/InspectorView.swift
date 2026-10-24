@@ -33,7 +33,9 @@ struct QuickLookPreview: NSViewRepresentable {
 
     func makeNSView(context: Context) -> QLPreviewView {
         let v = QLPreviewView(frame: .zero, style: .compact)!
-        v.autostarts = true
+        // Images and documents render either way; this only keeps audio and video from playing
+        // by themselves when the inspector opens on them.
+        v.autostarts = false
         v.shouldCloseWithWindow = false
         v.previewItem = url as NSURL
         return v
