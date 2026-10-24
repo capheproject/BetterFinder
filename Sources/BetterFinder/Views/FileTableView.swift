@@ -386,7 +386,35 @@ final class AccentRowView: NSTableRowView {
         let accent = AppSettings.shared.nsAccent
         let color = isEmphasized ? accent : accent.withAlphaComponent(0.18)
         color.setFill()
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 0), xRadius: 7, yRadius: 7).fill()
+        // Adjacent selected rows join into one block: only the run's outer corners are rounded.
+        let top = isPreviousRowSelected ? 0 : 7.0
+        let bottom = isNextRowSelected ? 0 : 7.0
+        Self.path(bounds.insetBy(dx: 4, dy: 0), top: top, bottom: bottom, flipped: isFlipped).fill()
+    }
+
+    override var isPreviousRowSelected: Bool { didSet { needsDisplay = true } }
+    override var isNextRowSelected: Bool { didSet { needsDisplay = true } }
+
+    private static func path(_ r: NSRect, top: CGFloat, bottom: CGFloat, flipped: Bool) -> NSBezierPath {
+        // In a flipped view the visual top is minY.
+        let (topY, bottomY) = flipped ? (r.minY, r.maxY) : (r.maxY, r.minY)
+        let dir: CGFloat = flipped ? 1 : -1 // from the top edge toward the bottom
+        let p = NSBezierPath()
+        p.move(to: NSPoint(x: r.minX + top, y: topY))
+        p.line(to: NSPoint(x: r.maxX - top, y: topY))
+        p.curve(to: NSPoint(x: r.maxX, y: topY + dir * top),
+                controlPoint1: NSPoint(x: r.maxX, y: topY), controlPoint2: NSPoint(x: r.maxX, y: topY))
+        p.line(to: NSPoint(x: r.maxX, y: bottomY - dir * bottom))
+        p.curve(to: NSPoint(x: r.maxX - bottom, y: bottomY),
+                controlPoint1: NSPoint(x: r.maxX, y: bottomY), controlPoint2: NSPoint(x: r.maxX, y: bottomY))
+        p.line(to: NSPoint(x: r.minX + bottom, y: bottomY))
+        p.curve(to: NSPoint(x: r.minX, y: bottomY - dir * bottom),
+                controlPoint1: NSPoint(x: r.minX, y: bottomY), controlPoint2: NSPoint(x: r.minX, y: bottomY))
+        p.line(to: NSPoint(x: r.minX, y: topY + dir * top))
+        p.curve(to: NSPoint(x: r.minX + top, y: topY),
+                controlPoint1: NSPoint(x: r.minX, y: topY), controlPoint2: NSPoint(x: r.minX, y: topY))
+        p.close()
+        return p
     }
 
     override var interiorBackgroundStyle: NSView.BackgroundStyle {
