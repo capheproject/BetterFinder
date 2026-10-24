@@ -188,7 +188,10 @@ final class Workspace {
     private func selectionChanged(in tab: BrowserTab) {
         guard tab === activeTab else { return }
         QuickLookController.shared.update(urls: tab.selectedURLs)
-        guard syncBrowsing, let other = otherTab else { return }
+        // Sync runs one way: the left pane drives the right, which drills down on its own. Driving
+        // from either side made a click in the right pane change the left one back and forth.
+        guard syncBrowsing, activePaneIndex == 0, visiblePaneCount > 1 else { return }
+        let other = panes[1].current
         syncWork?.cancel()
         let work = DispatchWorkItem { [weak self, weak tab] in
             guard let self, let tab, tab === self.activeTab else { return }
