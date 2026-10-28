@@ -331,15 +331,34 @@ final class VolumeStore {
     private init() {
         refresh()
         let nc = NSWorkspace.shared.notificationCenter
-        for n in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification, NSWorkspace.didRenameVolumeNotification] {
+        for n in [NSWorkspace.didMountNotification, NSWorkspace.didRenameVolumeNotification] {
             nc.addObserver(forName: n, object: nil, queue: .main) { [weak self] _ in self?.refresh() }
         }
+        nc.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: .main) { [weak self] n in
+            guard let url = n.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { self?.refresh(); return }
+            self?.removed(url)
+        }
+    }
+
+    /// The unmount notification can arrive while the volume is still listed as mounted, so drop it
+    /// by its URL instead of only re-reading the list, and move any tab showing it back home.
+    private func removed(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        volumes.removeAll { $0.url.standardizedFileURL.path == path }
+        for ws in WorkspaceRegistry.all {
+            for tab in ws.panes.flatMap(\.tabs) where tab.url.path == path || tab.url.path.hasPrefix(path + "/") {
+                tab.navigate(to: FileSystem.home)
+            }
+        }
+        // Pick up anything else that changed once the system has caught up.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.refresh() }
     }
 
     func refresh() {
         let keys: [URLResourceKey] = [.volumeNameKey, .volumeIsEjectableKey, .volumeIsRemovableKey, .volumeIsInternalKey, .volumeIsLocalKey]
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
         volumes = urls.compactMap { url in
+            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
             let v = try? url.resourceValues(forKeys: Set(keys))
             let ejectable = (v?.volumeIsEjectable ?? false) || (v?.volumeIsRemovable ?? false)
             let symbol: String
