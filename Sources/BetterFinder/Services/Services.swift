@@ -375,3 +375,37 @@ final class VolumeStore {
         }
     }
 }
+
+/// Free space, read once per volume and shared by every pane. The system's figure shifts a little
+/// on every read (background writes, purgeable space), so reading it per pane per folder made two
+/// panes on one disk disagree and the number creep as you browsed.
+@Observable
+final class FreeSpaceStore {
+    static let shared = FreeSpaceStore()
+    /// Keyed by volume root path.
+    private(set) var free: [String: Int64] = [:]
+    /// Bumped when the cached figures go stale, so panes ask again.
+    private(set) var generation = 0
+    @ObservationIgnored private var readAt: [String: Date] = [:]
+    private static let maxAge: TimeInterval = 30
+
+    private init() {}
+
+    /// The volume holding `url`, with its free space read if it's missing or old.
+    func volume(for url: URL) async -> String? {
+        // Resolving the volume can stall on a network or cloud mount, so keep it off the main thread.
+        let found = await Task.detached { (try? url.resourceValues(forKeys: [.volumeURLKey]))?.volume?.path }.value
+        guard let volume = found else { return nil }
+        if let at = readAt[volume], Date().timeIntervalSince(at) < Self.maxAge { return volume }
+        readAt[volume] = Date()
+        let bytes = await Task.detached { FileSystem.freeSpace(URL(fileURLWithPath: volume)) }.value
+        free[volume] = bytes
+        return volume
+    }
+
+    /// Call after something that changes disk usage; every pane re-reads its volume.
+    func invalidate() {
+        readAt.removeAll()
+        generation += 1
+    }
+}

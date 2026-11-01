@@ -56,6 +56,7 @@ final class FileOperationCenter {
 
     private func record(_ title: String, _ symbol: String, undo: (() throws -> Void)?) {
         footprints.insert(Footprint(title: title, symbol: symbol, undo: undo), at: 0)
+        FreeSpaceStore.shared.invalidate()
         if footprints.count > 300 { footprints.removeLast(footprints.count - 300) }
     }
 
@@ -72,6 +73,7 @@ final class FileOperationCenter {
         do {
             try undo()
             footprints[idx].undone = true
+            FreeSpaceStore.shared.invalidate()
             toast("Undid “\(footprints[idx].title)”")
         } catch {
             toast("Couldn’t undo: \(error.localizedDescription)")

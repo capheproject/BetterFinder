@@ -212,7 +212,7 @@ struct PaneHeader: View {
     @State private var editing = false
     @State private var text = ""
     @State private var hovering = false
-    @State private var free: Int64?
+    @State private var volume: String?
     @State private var crumbScroller = Debouncer()
     @FocusState private var fieldFocused: Bool
 
@@ -241,7 +241,7 @@ struct PaneHeader: View {
         } else {
             parts.append("\(count) item\(count == 1 ? "" : "s")")
         }
-        if let free { parts.append("\(Fmt.size(free)) available") }
+        if let volume, let free = FreeSpaceStore.shared.free[volume] { parts.append("\(Fmt.size(free)) available") }
         return parts.joined(separator: ", ")
     }
 
@@ -354,9 +354,8 @@ struct PaneHeader: View {
         .contentShape(Rectangle())
         .onTapGesture { ws.activate(paneIndex) }
         .onHover { hovering = $0 }
-        .task(id: tab.url) {
-            let url = tab.url
-            free = await Task.detached { FileSystem.freeSpace(url) }.value
+        .task(id: "\(tab.url.path)#\(FreeSpaceStore.shared.generation)") {
+            volume = await FreeSpaceStore.shared.volume(for: tab.url)
         }
     }
 
