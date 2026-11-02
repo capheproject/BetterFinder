@@ -4,24 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
-	<key>CFBundleExecutable</key>
-	<string>BetterFinder</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
-	<key>CFBundleIdentifier</key>
-	<string>app.betterfinder.BetterFinder</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>BetterFinder</string>
 	<key>CFBundleDisplayName</key>
 	<string>BetterFinder</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
-	<key>CFBundleVersion</key>
-	<string>1</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -37,23 +21,39 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleExecutable</key>
+	<string>BetterFinder</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>app.betterfinder.BetterFinder</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>BetterFinder</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.1</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
 	<key>NSDesktopFolderUsageDescription</key>
 	<string>BetterFinder shows and manages the files on your Desktop.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
 	<string>BetterFinder shows and manages the files in your Documents folder.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
 	<string>BetterFinder shows and manages the files in your Downloads folder.</string>
-	<key>NSRemovableVolumesUsageDescription</key>
-	<string>BetterFinder shows and manages files on removable drives.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
 	<key>NSNetworkVolumesUsageDescription</key>
 	<string>BetterFinder shows and manages files on network volumes.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>BetterFinder shows and manages files on removable drives.</string>
 </dict>
 </plist>
