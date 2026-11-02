@@ -49,3 +49,7 @@ Sources/BetterFinder/
   Views/     Window, panes, list/grid/columns, sidebar, inspector, Quick Open, panels
 scripts/     build-app.sh, make-icon/ (renders AppIcon.icns with the app's own AppIconRenderer)
 ```
+
+## License
+
+MIT
