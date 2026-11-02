@@ -2,7 +2,24 @@
 
 A native macOS file manager (SwiftUI + AppKit) that takes the best of **Bloom** (beauty, theming, Quick Open, Portal, Footprints) and **ForkLift** (multi-pane power, F5/F6, activity queue, Git, workspaces), and fixes what Finder gets wrong.
 
-## Build & run
+<p align="center"><img src="docs/screenshot.png" alt="BetterFinder with two panes and the inspector"></p>
+
+## Install
+
+1. Download **[BetterFinder.zip](https://github.com/capheproject/BetterFinder/releases/latest/download/BetterFinder.zip)** from the [latest release](https://github.com/capheproject/BetterFinder/releases/latest), unzip it, and drag **BetterFinder.app** into your Applications folder.
+2. Open it. The app is free and open source but not notarized by Apple, so the first time macOS stops it with a message like *“Apple could not verify BetterFinder is free of malware”*. Click **Done**, then allow it one of these ways:
+   - Open **System Settings › Privacy & Security**, scroll down to the message about BetterFinder, click **Open Anyway**, and confirm with your password or Touch ID.
+   - Or run this in Terminal:
+     ```sh
+     xattr -dr com.apple.quarantine /Applications/BetterFinder.app
+     ```
+   - On macOS 14 you can also Control-click the app in Finder and choose **Open**.
+
+   You only need to do this once. After that it opens like any other app.
+
+Runs on Apple silicon and Intel Macs with macOS 14 or later.
+
+## Build from source
 
 ```bash
 ./scripts/setup-signing.sh        # once: local signing identity, so folder permissions survive reinstalls
